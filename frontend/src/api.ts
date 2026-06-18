@@ -100,6 +100,9 @@ export interface ProductListParams {
   limit?: number
   q?: string
   category?: string
+  sortKey?: string
+  sortDir?: string
+  [key: string]: string | number | undefined
 }
 
 export const productsApi = {
@@ -164,8 +167,9 @@ export interface OrderListParams {
   q?: string
   from?: string
   to?: string
-  sortKey?: "date" | "cashier" | "total"
-  sortDir?: "asc" | "desc"
+  sortKey?: string
+  sortDir?: string
+  [key: string]: string | number | undefined
 }
 
 export const ordersApi = {
