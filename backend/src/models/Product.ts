@@ -1,0 +1,30 @@
+import mongoose from "mongoose";
+
+export interface IProduct {
+  name: string;
+  sku?: string;
+  price: number;
+  stock: number;
+  category?: string;
+  status: "active" | "disabled";
+  discountQty?: number | null;
+  discountPrice?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const productSchema = new mongoose.Schema<IProduct>(
+  {
+    name: { type: String, required: true, trim: true },
+    sku: { type: String, trim: true, unique: true, sparse: true },
+    price: { type: Number, required: true, min: 0 },
+    stock: { type: Number, default: 0, min: 0 },
+    category: { type: String, trim: true },
+    status: { type: String, enum: ["active", "disabled"], default: "active" },
+    discountQty: { type: Number, default: null, min: 2 },
+    discountPrice: { type: Number, default: null, min: 0 },
+  },
+  { timestamps: true }
+);
+
+export default mongoose.model<IProduct>("Product", productSchema);
