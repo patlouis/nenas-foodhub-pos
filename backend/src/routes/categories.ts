@@ -13,16 +13,16 @@ router.get("/", requireAuth, async (_req: Request, res: Response, next: NextFunc
     const [categories, counts] = await Promise.all([
       Category.find().sort({ order: 1, name: 1 }).lean(),
       Product.aggregate([
-        { $match: { category: { $nin: [null, ""] } } },
+        { $match: { category: { $exists: true, $ne: null } } },
         { $group: { _id: "$category", count: { $sum: 1 } } },
       ]),
     ]);
 
-    const countByName = new Map(counts.map((c) => [c._id, c.count]));
+    const countById = new Map(counts.map((c) => [c._id.toString(), c.count]));
     res.json(
       categories.map((c) => ({
         ...c,
-        productCount: countByName.get(c.name) ?? 0,
+        productCount: countById.get(c._id.toString()) ?? 0,
       }))
     );
   } catch (err) {
