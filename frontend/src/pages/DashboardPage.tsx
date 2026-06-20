@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Order, Product } from "../types"
-import { ordersApi, productsApi } from "../api"
+import type { Order, Product, Category } from "../types"
+import { ordersApi, productsApi, categoriesApi } from "../api"
 import { ErrorBanner, PageShell } from "../components/ui"
 
 type DateMode = "day" | "week" | "month"
@@ -254,6 +254,7 @@ const inputCls =
 export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dateMode, setDateMode] = useState<DateMode>("day")
@@ -271,12 +272,14 @@ export default function DashboardPage() {
     ;(async () => {
       try {
         // Analytics need the full history/catalog, not one page of it.
-        const [o, p] = await Promise.all([
+        const [o, p, c] = await Promise.all([
           ordersApi.list({ limit: 1000 }),
           productsApi.list({ limit: 500 }),
+          categoriesApi.list(),
         ])
         setOrders(o.data)
         setProducts(p.data)
+        setCategories(c)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard")
       } finally {
@@ -377,11 +380,14 @@ export default function DashboardPage() {
 
   // Category breakdown — qty sold + revenue
   const categoryRevenue = useMemo(() => {
-    const catByName = new Map(products.map((p) => [p.name, p.category ?? "Other"]))
+    const catIdMap = new Map(categories.map((c) => [c._id, c.name]))
+    const catByProductName = new Map(
+      products.map((p) => [p.name, p.category ? (catIdMap.get(p.category) ?? "Other") : "Other"])
+    )
     const map = new Map<string, { qty: number; revenue: number }>()
     for (const o of curOrders) {
       for (const item of o.items) {
-        const cat = catByName.get(item.name) ?? "Other"
+        const cat = catByProductName.get(item.name) ?? "Other"
         const e = map.get(cat) ?? { qty: 0, revenue: 0 }
         map.set(cat, { qty: e.qty + item.quantity, revenue: e.revenue + lt(item) })
       }
@@ -389,7 +395,7 @@ export default function DashboardPage() {
     return [...map.entries()]
       .sort((a, b) => b[1].qty - a[1].qty)
       .map(([label, d]) => ({ label, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
-  }, [curOrders, products])
+  }, [curOrders, products, categories])
 
   // Peak hours — always all-time for enough signal
   const peakHours = useMemo(() => {
@@ -599,24 +605,30 @@ export default function DashboardPage() {
             <p className="text-sm text-green-600">All products are well-stocked.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {outOfStock.map((p) => (
-                <div key={p._id} className="flex items-center justify-between rounded-lg bg-red-500/10 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text-h)]">{p.name}</p>
-                    {p.category && <p className="text-xs text-[var(--text)]">{p.category}</p>}
+              {outOfStock.map((p) => {
+                const catName = p.category ? categories.find((c) => c._id === p.category)?.name : undefined
+                return (
+                  <div key={p._id} className="flex items-center justify-between rounded-lg bg-red-500/10 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-h)]">{p.name}</p>
+                      {catName && <p className="text-xs text-[var(--text)]">{catName}</p>}
+                    </div>
+                    <span className="text-sm font-semibold text-red-500">Out of stock</span>
                   </div>
-                  <span className="text-sm font-semibold text-red-500">Out of stock</span>
-                </div>
-              ))}
-              {lowStock.map((p) => (
-                <div key={p._id} className="flex items-center justify-between rounded-lg bg-yellow-400/10 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text-h)]">{p.name}</p>
-                    {p.category && <p className="text-xs text-[var(--text)]">{p.category}</p>}
+                )
+              })}
+              {lowStock.map((p) => {
+                const catName = p.category ? categories.find((c) => c._id === p.category)?.name : undefined
+                return (
+                  <div key={p._id} className="flex items-center justify-between rounded-lg bg-yellow-400/10 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-h)]">{p.name}</p>
+                      {catName && <p className="text-xs text-[var(--text)]">{catName}</p>}
+                    </div>
+                    <span className="text-sm font-semibold tabular-nums text-yellow-600">{p.stock} left</span>
                   </div>
-                  <span className="text-sm font-semibold tabular-nums text-yellow-600">{p.stock} left</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
