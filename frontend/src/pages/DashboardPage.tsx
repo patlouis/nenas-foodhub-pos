@@ -325,17 +325,25 @@ export default function DashboardPage() {
   const calcProfit = (orderList: Order[]) =>
     orderList.reduce((sum, o) => {
       for (const item of o.items) {
-        const cost = costByName.get(item.name)
+        // Use snapshotted costPrice if available; fall back to current catalog for legacy orders
+        const cost = item.costPrice ?? costByName.get(item.name) ?? null
         if (cost != null) sum += lt(item) - cost * item.quantity
       }
       return sum
     }, 0)
   const curProfit = useMemo(() => calcProfit(curOrders), [curOrders, costByName])
   const prvProfit = useMemo(() => calcProfit(prvOrders), [prvOrders, costByName])
-  const missingCostCount = useMemo(
-    () => products.filter((p) => p.costPrice == null && p.status !== "disabled").length,
-    [products],
-  )
+  const missingCostCount = useMemo(() => {
+    const missing = new Set<string>()
+    for (const o of curOrders) {
+      for (const item of o.items) {
+        if ((item.costPrice ?? costByName.get(item.name) ?? null) == null) {
+          missing.add(item.name)
+        }
+      }
+    }
+    return missing.size
+  }, [curOrders, costByName])
 
   // Revenue trend — adapts to selected mode
   const revenueTrend = useMemo(() => {

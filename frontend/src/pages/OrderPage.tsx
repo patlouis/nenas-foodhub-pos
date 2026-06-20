@@ -52,6 +52,7 @@ export default function OrderPage() {
   const [query, setQuery] = useState("")
   const [cart, setCart] = useState<CartLine[]>([])
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
+  const [amountTendered, setAmountTendered] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -147,6 +148,7 @@ export default function OrderPage() {
       )
       setCart([])
       setPaymentMethod("cash")
+      setAmountTendered("")
       const num = order.orderNumber != null ? `#${String(order.orderNumber).padStart(4, "0")}` : ""
       setSuccess(`Order ${num} placed — ₱${order.total.toFixed(2)}`)
       await load() // stock changed on the server
@@ -322,7 +324,7 @@ export default function OrderPage() {
             {(["cash", "gcash"] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => setPaymentMethod(m)}
+                onClick={() => { setPaymentMethod(m); if (m === "gcash") setAmountTendered("") }}
                 className={
                   "flex-1 cursor-pointer rounded-lg border py-2 text-sm font-medium capitalize transition " +
                   (paymentMethod === m
@@ -337,9 +339,43 @@ export default function OrderPage() {
             ))}
           </div>
 
+          {/* Amount tendered + change — cash only */}
+          {paymentMethod === "cash" && cart.length > 0 && (() => {
+            const tendered = parseFloat(amountTendered) || 0
+            const change = tendered - total
+            const short = amountTendered !== "" && tendered < total
+            return (
+              <div className="mb-3">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text)]">₱</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={amountTendered}
+                    onChange={(e) => setAmountTendered(e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2 pl-7 pr-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    placeholder="Amount tendered"
+                  />
+                </div>
+                {change >= 0 && amountTendered !== "" && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-500/10 px-3 py-2">
+                    <span className="text-sm font-medium text-emerald-600">Change</span>
+                    <span className="font-semibold tabular-nums text-emerald-600">₱{change.toFixed(2)}</span>
+                  </div>
+                )}
+                {short && (
+                  <p className="mt-1.5 text-xs text-red-500">
+                    Short by ₱{(total - tendered).toFixed(2)}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
+
           <button
             onClick={submit}
-            disabled={cart.length === 0 || submitting}
+            disabled={cart.length === 0 || submitting || (paymentMethod === "cash" && amountTendered !== "" && (parseFloat(amountTendered) || 0) < total)}
             className={`${btnPrimaryCls} w-full`}
           >
             {submitting ? "Placing order…" : "Place order"}

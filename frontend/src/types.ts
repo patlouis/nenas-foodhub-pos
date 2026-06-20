@@ -32,6 +32,7 @@ export interface OrderItem {
   product: string
   name: string // snapshot at time of sale
   price: number // snapshot unit price
+  costPrice?: number | null // snapshot at time of sale
   quantity: number
   lineTotal: number // actual amount charged (may differ from price × qty when discounted)
 }

@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import Counter from "../models/Counter.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { computeLineTotal } from "../lib/pricing.js";
@@ -104,34 +105,33 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     const orderItems = items.map((it) => {
       const p = byId.get(it.productId)!;
       const lineTotal = computeLineTotal(p, it.quantity);
-      return { product: p._id, name: p.name, price: p.price, quantity: it.quantity, lineTotal };
+      return { product: p._id, name: p.name, price: p.price, costPrice: p.costPrice ?? null, quantity: it.quantity, lineTotal };
     });
     const total = orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
 
-    // Assign a random 4-digit order number (0000–9999). Retry on the rare
-    // duplicate-key collision — the unique index guarantees no two orders
-    // ever share a number without any check-then-insert race condition.
-    let order;
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const orderNumber = Math.floor(Math.random() * 10000);
-      try {
-        order = await Order.create({
-          orderNumber,
-          items: orderItems,
-          total,
-          cashier: req.user!.sub,
-          cashierName: req.user!.name,
-          paymentMethod,
-        });
-        break;
-      } catch (err: any) {
-        if (err.code === 11000 && err.keyValue?.orderNumber !== undefined) {
-          continue; // collision — try a different number
-        }
-        throw err;
-      }
-    }
-    if (!order) throw new Error("Could not assign a unique order number");
+    // Atomic sequential order number. $max bumps the counter to 9999 if it
+    // is below that — handles both first use and counters that already exist
+    // below the threshold — so numbering starts at 10000+.
+    await Counter.updateOne(
+      { _id: "orderNumber" },
+      { $max: { seq: 9999 } },
+      { upsert: true }
+    );
+    const counter = await Counter.findOneAndUpdate(
+      { _id: "orderNumber" },
+      { $inc: { seq: 1 } },
+      { returnDocument: "after" }
+    );
+    const orderNumber = counter!.seq;
+
+    const order = await Order.create({
+      orderNumber,
+      items: orderItems,
+      total,
+      cashier: req.user!.sub,
+      cashierName: req.user!.name,
+      paymentMethod,
+    });
     res.status(201).json(order);
   } catch (err: any) {
     // Order insert failed after stock was taken — give the stock back.

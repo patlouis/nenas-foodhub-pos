@@ -7,6 +7,7 @@ export interface IOrderItem {
   product: mongoose.Types.ObjectId;
   name: string;
   price: number;
+  costPrice?: number | null;
   quantity: number;
   lineTotal: number;
 }
@@ -31,6 +32,7 @@ const orderItemSchema = new mongoose.Schema<IOrderItem>(
     product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
     name: { type: String, required: true },
     price: { type: Number, required: true, min: 0 },
+    costPrice: { type: Number, default: null },
     quantity: { type: Number, required: true, min: 1 },
     lineTotal: { type: Number, required: true, min: 0 },
   },
