@@ -81,7 +81,7 @@ export default function OrderPage() {
 
   const visibleProducts = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const catOrder = new Map(categories.map((c) => [c.name, c.order ?? 0]))
+    const catOrder = new Map(categories.map((c) => [c._id, c.order ?? 0]))
     return products
       .filter((p) => {
         if (q) return p.name.toLowerCase().includes(q)
@@ -172,7 +172,7 @@ export default function OrderPage() {
             All
           </Chip>
           {categories.map((c) => (
-            <Chip key={c._id} active={category === c.name} onClick={() => { setCategory(c.name); setQuery("") }} color={c.color}>
+            <Chip key={c._id} active={category === c._id} onClick={() => { setCategory(c._id); setQuery("") }} color={c.color}>
               {c.name}
             </Chip>
           ))}
@@ -185,7 +185,7 @@ export default function OrderPage() {
             {query
               ? `No products match "${query}".`
               : category
-              ? `No products in ${category}.`
+              ? `No products in ${categories.find((c) => c._id === category)?.name ?? category}.`
               : "No products yet — add some on the Products page."}
           </EmptyState>
         ) : (
