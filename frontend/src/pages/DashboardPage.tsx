@@ -101,7 +101,7 @@ function KpiCard({
   label: string
   value: string
   trend?: number
-  note?: React.ReactNode
+  note?: string
 }) {
   return (
     <div className="flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -525,12 +525,7 @@ export default function DashboardPage() {
           label="Profit"
           value={fmtMoney(curProfit)}
           trend={fmtPct(curProfit, prvProfit)}
-          note={missingCostCount > 0 ? (
-            <>
-              <span className="sm:hidden">{missingCostCount} missing cost</span>
-              <span className="hidden sm:inline">{missingCostCount} product{missingCostCount === 1 ? "" : "s"} missing cost price</span>
-            </>
-          ) : PREV_LABEL[dateMode]}
+          note={missingCostCount > 0 ? `${missingCostCount} missing cost` : PREV_LABEL[dateMode]}
         />
         <KpiCard
           label="Orders"
