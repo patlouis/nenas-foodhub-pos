@@ -541,7 +541,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Revenue trend + top products */}
-      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5 lg:items-start">
+      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-3">
           <p className="mb-4 text-sm font-semibold text-[var(--text-h)]">
             {trendTitle}{" "}
@@ -562,12 +562,12 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-2">
-          <p className="mb-4 text-sm font-semibold text-[var(--text-h)]">
+        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-2 lg:max-h-[296px]">
+          <p className="mb-4 shrink-0 text-sm font-semibold text-[var(--text-h)]">
             Best Sellers{" "}
             <span className="font-normal text-[var(--text)]">· {periodLabel(dateMode, datePick)}</span>
           </p>
-          <div className="flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {topProducts.length === 0 ? (
               <p className="text-sm text-[var(--text)]">No orders yet for this period.</p>
             ) : (
@@ -578,7 +578,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Peak hours + category */}
-      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5 lg:items-start">
+      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-3">
           <p className="mb-4 text-sm font-semibold text-[var(--text-h)]">
             Peak Hours{" "}
@@ -593,12 +593,12 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-2">
-          <p className="mb-4 text-sm font-semibold text-[var(--text-h)]">
+        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-2 lg:max-h-[236px]">
+          <p className="mb-4 shrink-0 text-sm font-semibold text-[var(--text-h)]">
             By Category{" "}
             <span className="font-normal text-[var(--text)]">· {periodLabel(dateMode, datePick)}</span>
           </p>
-          <div className="flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {categoryRevenue.length === 0 ? (
               <p className="text-sm text-[var(--text)]">No orders yet for this period.</p>
             ) : (
