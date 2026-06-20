@@ -105,7 +105,7 @@ export default function ProductsPage() {
     }
   }
 
-  const catMap = new Map(categories.map((c) => [c.name, c]))
+  const catMap = new Map(categories.map((c) => [c._id, c]))
 
   function openAdd() {
     setEditTarget(null)
@@ -215,7 +215,7 @@ export default function ProductsPage() {
             >
               <option value="">All categories</option>
               {categories.map((c) => (
-                <option key={c._id} value={c.name}>{c.name}</option>
+                <option key={c._id} value={c._id}>{c.name}</option>
               ))}
             </select>
           </Toolbar>
@@ -367,7 +367,7 @@ export default function ProductsPage() {
               >
                 <option value="">None</option>
                 {categories.map((c) => (
-                  <option key={c._id} value={c.name}>{c.name}</option>
+                  <option key={c._id} value={c._id}>{c.name}</option>
                 ))}
               </select>
             </label>
