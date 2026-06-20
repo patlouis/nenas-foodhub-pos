@@ -74,7 +74,7 @@ export default function InventoryPage() {
   }
 
   const catMap = useMemo(
-    () => new Map(categories.map((c) => [c.name, c])),
+    () => new Map(categories.map((c) => [c._id, c])),
     [categories]
   )
 
@@ -82,7 +82,7 @@ export default function InventoryPage() {
     const q = query.trim().toLowerCase()
     const filtered = products.filter((p) => {
       if (categoryFilter && (p.category ?? "") !== categoryFilter) return false
-      return !q || p.name.toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q)
+      return !q || p.name.toLowerCase().includes(q) || (catMap.get(p.category ?? "")?.name ?? "").toLowerCase().includes(q)
     })
     return [...filtered].sort((a, b) => {
       let cmp = 0
@@ -177,7 +177,7 @@ export default function InventoryPage() {
             >
               <option value="">All categories</option>
               {categories.map((c) => (
-                <option key={c._id} value={c.name}>{c.name}</option>
+                <option key={c._id} value={c._id}>{c.name}</option>
               ))}
             </select>
           </Toolbar>
