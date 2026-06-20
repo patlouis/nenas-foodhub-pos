@@ -17,6 +17,7 @@ export interface IOrder {
   total: number;
   cashier?: mongoose.Types.ObjectId;
   cashierName?: string; // snapshot, same reasoning as item names
+  paymentMethod: "cash" | "gcash";
   status: "completed" | "voided";
   voidedAt?: Date;
   voidedBy?: mongoose.Types.ObjectId;
@@ -47,6 +48,7 @@ const orderSchema = new mongoose.Schema<IOrder>(
     total: { type: Number, required: true, min: 0 },
     cashier: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     cashierName: { type: String }, // snapshot, same reasoning as item names
+    paymentMethod: { type: String, enum: ["cash", "gcash"], default: "cash" },
     status: { type: String, enum: ["completed", "voided"], default: "completed" },
     voidedAt: { type: Date },
     voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

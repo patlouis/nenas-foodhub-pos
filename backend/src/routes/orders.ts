@@ -62,6 +62,7 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
 // prices, and the stored snapshot always matches the catalog at sale time.
 router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Request, res: Response) => {
   const rawItems = req.body.items as { productId: string; quantity: number }[];
+  const paymentMethod: "cash" | "gcash" = req.body.paymentMethod ?? "cash";
 
   // Merge duplicate products into one line.
   const qtyById = new Map<string, number>();
@@ -120,6 +121,7 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
           total,
           cashier: req.user!.sub,
           cashierName: req.user!.name,
+          paymentMethod,
         });
         break;
       } catch (err: any) {

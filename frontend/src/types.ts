@@ -42,6 +42,7 @@ export interface Order {
   items: OrderItem[]
   total: number
   cashierName?: string
+  paymentMethod?: "cash" | "gcash"
   createdAt?: string
   status?: "completed" | "voided"
   voidedAt?: string

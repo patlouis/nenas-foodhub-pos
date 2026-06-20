@@ -176,11 +176,11 @@ export const ordersApi = {
   list: (params?: OrderListParams) =>
     fetch(`${ORDERS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Order>>),
 
-  create: (items: NewOrderItem[]) =>
+  create: (items: NewOrderItem[], paymentMethod: "cash" | "gcash" = "cash") =>
     fetch(ORDERS, {
       method: "POST",
       headers: jsonHeaders(),
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, paymentMethod }),
     }).then(handle<Order>),
 
   void: (id: string) =>

@@ -34,6 +34,18 @@ function ItemsList({ items }: { items: import("../types").OrderItem[] }) {
   )
 }
 
+function PaymentBadge({ method }: { method?: "cash" | "gcash" }) {
+  return method === "gcash" ? (
+    <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-500">
+      GCash
+    </span>
+  ) : (
+    <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
+      Cash
+    </span>
+  )
+}
+
 type SortKey = "date" | "cashier" | "total"
 type SortDir = "asc" | "desc"
 type DateMode = "all" | "month" | "week" | "day"
@@ -285,9 +297,12 @@ export default function OrderHistoryPage() {
                           )}
                         </p>
                       </div>
-                      <span className={`shrink-0 font-semibold tabular-nums text-[var(--text-h)] ${voided ? "line-through" : ""}`}>
-                        ₱{o.total.toFixed(2)}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={`font-semibold tabular-nums text-[var(--text-h)] ${voided ? "line-through" : ""}`}>
+                          ₱{o.total.toFixed(2)}
+                        </span>
+                        <PaymentBadge method={o.paymentMethod} />
+                      </div>
                     </div>
 
                     <p className="mt-2 text-sm text-[var(--text)]">{o.cashierName ?? "—"}</p>
@@ -328,6 +343,7 @@ export default function OrderHistoryPage() {
                   <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
                     <SortTh label="Date"    col="date"    className="w-56" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <SortTh label="Cashier" col="cashier" className="w-36" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                    <th className="w-24 px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Payment</th>
                     <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Items</th>
                     <SortTh label="Total"   col="total"   align="right" className="w-32" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <th className="w-16 px-4 py-3" />
@@ -357,6 +373,9 @@ export default function OrderHistoryPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[var(--text)]">{o.cashierName ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <PaymentBadge method={o.paymentMethod} />
+                      </td>
                       <td className="px-4 py-3">
                         <ItemsList items={o.items} />
                       </td>
@@ -405,9 +424,12 @@ export default function OrderHistoryPage() {
       >
         {viewTarget && (
           <div className="flex flex-col gap-4">
-            <div className="flex justify-between text-sm text-[var(--text)]">
-              <span>{formatDate(viewTarget.createdAt)}</span>
-              <span>Cashier: <span className="text-[var(--text-h)]">{viewTarget.cashierName ?? "—"}</span></span>
+            <div className="flex items-start justify-between gap-4 text-sm text-[var(--text)]">
+              <div className="flex flex-col items-start gap-1">
+                <span>{formatDate(viewTarget.createdAt)}</span>
+                <PaymentBadge method={viewTarget.paymentMethod} />
+              </div>
+              <span className="shrink-0">Cashier: <span className="text-[var(--text-h)]">{viewTarget.cashierName ?? "—"}</span></span>
             </div>
 
             {viewTarget.status === "voided" && (

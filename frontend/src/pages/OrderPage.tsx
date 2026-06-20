@@ -51,6 +51,7 @@ export default function OrderPage() {
   const [category, setCategory] = useState("") // "" = All
   const [query, setQuery] = useState("")
   const [cart, setCart] = useState<CartLine[]>([])
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -141,9 +142,11 @@ export default function OrderPage() {
     setSubmitting(true)
     try {
       const order = await ordersApi.create(
-        cart.map((l) => ({ productId: l.product._id, quantity: l.quantity }))
+        cart.map((l) => ({ productId: l.product._id, quantity: l.quantity })),
+        paymentMethod,
       )
       setCart([])
+      setPaymentMethod("cash")
       const num = order.orderNumber != null ? `#${String(order.orderNumber).padStart(4, "0")}` : ""
       setSuccess(`Order ${num} placed — ₱${order.total.toFixed(2)}`)
       await load() // stock changed on the server
@@ -313,6 +316,27 @@ export default function OrderPage() {
               ₱{total.toFixed(2)}
             </span>
           </div>
+
+          {/* Payment method toggle */}
+          <div className="mb-3 flex gap-2">
+            {(["cash", "gcash"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setPaymentMethod(m)}
+                className={
+                  "flex-1 cursor-pointer rounded-lg border py-2 text-sm font-medium capitalize transition " +
+                  (paymentMethod === m
+                    ? m === "gcash"
+                      ? "border-blue-500 bg-blue-500/10 text-blue-500"
+                      : "border-[var(--accent)] bg-[var(--accent-bg)] text-[var(--accent)]"
+                    : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)]")
+                }
+              >
+                {m === "gcash" ? "GCash" : "Cash"}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={submit}
             disabled={cart.length === 0 || submitting}

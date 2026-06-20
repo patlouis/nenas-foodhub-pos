@@ -13,6 +13,7 @@ export const createOrderSchema = z.object({
       })
     )
     .min(1, "Order must contain at least one item"),
+  paymentMethod: z.enum(["cash", "gcash"]).optional().default("cash"),
 });
 
 export const listOrdersQuerySchema = paginationQuerySchema(1000).extend({
