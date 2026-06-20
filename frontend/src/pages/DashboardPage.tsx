@@ -522,16 +522,16 @@ export default function DashboardPage() {
           note={PREV_LABEL[dateMode]}
         />
         <KpiCard
-          label="Orders"
-          value={String(curOrders.length)}
-          trend={fmtPct(curOrders.length, prvOrders.length)}
-          note={PREV_LABEL[dateMode]}
-        />
-        <KpiCard
           label="Profit"
           value={fmtMoney(curProfit)}
           trend={fmtPct(curProfit, prvProfit)}
           note={missingCostCount > 0 ? `${missingCostCount} product${missingCostCount === 1 ? "" : "s"} missing cost price` : PREV_LABEL[dateMode]}
+        />
+        <KpiCard
+          label="Orders"
+          value={String(curOrders.length)}
+          trend={fmtPct(curOrders.length, prvOrders.length)}
+          note={PREV_LABEL[dateMode]}
         />
         <KpiCard
           label="Items Sold"
