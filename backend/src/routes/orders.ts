@@ -2,7 +2,6 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
-import Counter from "../models/Counter.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { computeLineTotal } from "../lib/pricing.js";
@@ -109,20 +108,8 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     });
     const total = orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
 
-    // Atomic sequential order number. $max bumps the counter to 9999 if it
-    // is below that — handles both first use and counters that already exist
-    // below the threshold — so numbering starts at 10000+.
-    await Counter.updateOne(
-      { _id: "orderNumber" },
-      { $max: { seq: 9999 } },
-      { upsert: true }
-    );
-    const counter = await Counter.findOneAndUpdate(
-      { _id: "orderNumber" },
-      { $inc: { seq: 1 } },
-      { returnDocument: "after" }
-    );
-    const orderNumber = counter!.seq;
+    const last = await Order.findOne({}, { orderNumber: 1 }).sort({ orderNumber: -1 });
+    const orderNumber = (last?.orderNumber ?? 0) + 1;
 
     const order = await Order.create({
       orderNumber,

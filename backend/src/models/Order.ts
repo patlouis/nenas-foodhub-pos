@@ -41,7 +41,7 @@ const orderItemSchema = new mongoose.Schema<IOrderItem>(
 
 const orderSchema = new mongoose.Schema<IOrder>(
   {
-    orderNumber: { type: Number, unique: true, sparse: true },
+    orderNumber: { type: Number, sparse: true },
     items: {
       type: [orderItemSchema],
       required: true,
