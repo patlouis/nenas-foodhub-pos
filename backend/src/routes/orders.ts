@@ -109,16 +109,19 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     const total = orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
 
     const last = await Order.findOne({}, { orderNumber: 1 }).sort({ orderNumber: -1 });
-    const orderNumber = (last?.orderNumber ?? 0) + 1;
+    let orderNumber = (last?.orderNumber ?? 0) + 1;
 
-    const order = await Order.create({
-      orderNumber,
-      items: orderItems,
-      total,
-      cashier: req.user!.sub,
-      cashierName: req.user!.name,
-      paymentMethod,
-    });
+    let order;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        order = await Order.create({ orderNumber, items: orderItems, total, cashier: req.user!.sub, cashierName: req.user!.name, paymentMethod });
+        break;
+      } catch (err: any) {
+        if (err.code !== 11000) throw err;
+        orderNumber++;
+      }
+    }
+    if (!order) throw new Error("Failed to assign order number after 5 attempts");
     res.status(201).json(order);
   } catch (err: any) {
     // Order insert failed after stock was taken — give the stock back.
