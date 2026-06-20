@@ -7,6 +7,7 @@ export interface IProduct {
   stock: number;
   category?: mongoose.Types.ObjectId;
   status: "active" | "disabled";
+  costPrice?: number | null;
   discountQty?: number | null;
   discountPrice?: number | null;
   createdAt?: Date;
@@ -21,6 +22,7 @@ const productSchema = new mongoose.Schema<IProduct>(
     stock: { type: Number, default: 0, min: 0 },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
     status: { type: String, enum: ["active", "disabled"], default: "active" },
+    costPrice: { type: Number, default: null, min: 0 },
     discountQty: { type: Number, default: null, min: 2 },
     discountPrice: { type: Number, default: null, min: 0 },
   },

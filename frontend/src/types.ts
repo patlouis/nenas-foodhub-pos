@@ -18,6 +18,7 @@ export interface Product {
   stock: number
   category?: string
   status?: "active" | "disabled"
+  costPrice?: number | null
   discountQty?: number | null
   discountPrice?: number | null
   createdAt?: string

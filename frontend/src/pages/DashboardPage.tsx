@@ -312,11 +312,29 @@ export default function DashboardPage() {
   // KPIs
   const curRevenue   = useMemo(() => curOrders.reduce((s, o) => s + o.total, 0), [curOrders])
   const prvRevenue   = useMemo(() => prvOrders.reduce((s, o) => s + o.total, 0), [prvOrders])
-  const curAvg       = curOrders.length > 0 ? curRevenue / curOrders.length : 0
-  const prvAvg       = prvOrders.length > 0 ? prvRevenue / prvOrders.length : 0
   const curItemsSold = useMemo(
     () => curOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.quantity, 0), 0),
     [curOrders],
+  )
+
+  // Profit — uses current costPrice from product catalog (not snapshotted on orders)
+  const costByName = useMemo(
+    () => new Map(products.map((p) => [p.name, p.costPrice ?? null])),
+    [products],
+  )
+  const calcProfit = (orderList: Order[]) =>
+    orderList.reduce((sum, o) => {
+      for (const item of o.items) {
+        const cost = costByName.get(item.name)
+        if (cost != null) sum += lt(item) - cost * item.quantity
+      }
+      return sum
+    }, 0)
+  const curProfit = useMemo(() => calcProfit(curOrders), [curOrders, costByName])
+  const prvProfit = useMemo(() => calcProfit(prvOrders), [prvOrders, costByName])
+  const missingCostCount = useMemo(
+    () => products.filter((p) => p.costPrice == null && p.status !== "disabled").length,
+    [products],
   )
 
   // Revenue trend — adapts to selected mode
@@ -510,10 +528,10 @@ export default function DashboardPage() {
           note={PREV_LABEL[dateMode]}
         />
         <KpiCard
-          label="Avg Order Value"
-          value={fmtMoney(curAvg)}
-          trend={fmtPct(curAvg, prvAvg)}
-          note={PREV_LABEL[dateMode]}
+          label="Profit"
+          value={fmtMoney(curProfit)}
+          trend={fmtPct(curProfit, prvProfit)}
+          note={missingCostCount > 0 ? `${missingCostCount} product${missingCostCount === 1 ? "" : "s"} missing cost price` : PREV_LABEL[dateMode]}
         />
         <KpiCard
           label="Items Sold"

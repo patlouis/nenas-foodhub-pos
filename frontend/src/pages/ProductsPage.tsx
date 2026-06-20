@@ -13,7 +13,7 @@ import {
 type SortKey = "category" | "name" | "sku" | "price" | "stock"
 type SortDir = "asc" | "desc"
 
-const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", discountQty: null, discountPrice: null }
+const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", costPrice: null, discountQty: null, discountPrice: null }
 
 export default function ProductsPage() {
   const { user } = useAuth()
@@ -120,7 +120,7 @@ export default function ProductsPage() {
     setEditTarget(p)
     setSkuTouched(true)
     setDiscountOn(p.discountQty != null)
-    setForm({ name: p.name, sku: p.sku ?? "", price: p.price, stock: p.stock, category: p.category ?? "", discountQty: p.discountQty ?? null, discountPrice: p.discountPrice ?? null })
+    setForm({ name: p.name, sku: p.sku ?? "", price: p.price, stock: p.stock, category: p.category ?? "", costPrice: p.costPrice ?? null, discountQty: p.discountQty ?? null, discountPrice: p.discountPrice ?? null })
     setFormError(null)
     setModalOpen(true)
   }
@@ -373,27 +373,48 @@ export default function ProductsPage() {
             </label>
           </div>
 
-          {/* Price + Stock */}
+          {/* Price + Cost Price */}
           <div className="grid grid-cols-2 gap-3">
             <label className={fieldLabelCls}>
               Price (₱)
               <input type="number" min="0" step="0.01" value={form.price || ""} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} placeholder="0.00" className={inputCls} />
             </label>
-            {editTarget ? (
-              <div className={fieldLabelCls}>
-                Stock
-                <div className="flex h-10 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums text-[var(--text)]">
-                  {editTarget.stock}
-                  <span className="ml-1.5 text-xs">remaining</span>
-                </div>
-              </div>
-            ) : (
-              <label className={fieldLabelCls}>
-                Initial stock
-                <input type="number" min="0" value={form.stock || ""} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} placeholder="0" className={inputCls} />
-              </label>
-            )}
+            <label className={fieldLabelCls}>
+              Cost price (₱)
+              <input
+                type="number" min="0" step="0.01"
+                value={form.costPrice ?? ""}
+                onChange={(e) => setForm({ ...form, costPrice: e.target.value !== "" ? Number(e.target.value) : null })}
+                placeholder="optional"
+                className={inputCls}
+              />
+            </label>
           </div>
+          {form.costPrice != null && form.price > 0 && (() => {
+            const profit = form.price - form.costPrice
+            const margin = (profit / form.price) * 100
+            return (
+              <p className={`text-xs ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                Profit ₱{profit.toFixed(2)} · {margin.toFixed(1)}% margin
+              </p>
+            )
+          })()}
+
+          {/* Stock */}
+          {editTarget ? (
+            <div className={fieldLabelCls}>
+              Stock
+              <div className="flex h-10 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums text-[var(--text)]">
+                {editTarget.stock}
+                <span className="ml-1.5 text-xs">remaining</span>
+              </div>
+            </div>
+          ) : (
+            <label className={fieldLabelCls}>
+              Initial stock
+              <input type="number" min="0" value={form.stock || ""} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} placeholder="0" className={inputCls} />
+            </label>
+          )}
 
           {/* Quantity discount toggle */}
           <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
