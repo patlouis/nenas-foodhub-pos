@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import Sidebar, { type Page } from "./components/Sidebar"
 import OrderPage from "./pages/OrderPage"
 import OrderHistoryPage from "./pages/OrderHistoryPage"
-import ProductsPage from "./pages/ProductsPage"
 import InventoryPage from "./pages/InventoryPage"
 import CategoriesPage from "./pages/CategoriesPage"
 import UsersPage from "./pages/UsersPage"
@@ -133,8 +132,7 @@ function App() {
             <OrderPage pendingBarcodeSku={pendingBarcodeSku} onBarcodeConsumed={() => setPendingBarcodeSku(null)} />
           </div>
           {page === "history"    && <OrderHistoryPage />}
-          {page === "products"   && <ProductsPage />}
-          {page === "categories" && <CategoriesPage />}
+{page === "categories" && <CategoriesPage />}
           {page === "inventory"  && <InventoryPage />}
           {page === "users"      && user.role === "admin" && <UsersPage />}
         </main>

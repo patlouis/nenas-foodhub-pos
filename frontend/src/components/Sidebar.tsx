@@ -1,7 +1,7 @@
 import type { Theme } from "../useTheme"
 import type { Role } from "../types"
 
-export type Page = "dashboard" | "order" | "history" | "products" | "categories" | "inventory" | "users"
+export type Page = "dashboard" | "order" | "history" | "categories" | "inventory" | "users"
 
 type SidebarProps = {
   current: Page
@@ -112,7 +112,6 @@ const NAV_ITEMS: { id: Page; label: string; Icon: () => React.JSX.Element; admin
   { id: "dashboard",  label: "Dashboard",     Icon: DashboardIcon, adminOnly: true },
   { id: "order",      label: "New Order",     Icon: OrderIcon      },
   { id: "history",    label: "Order History", Icon: HistoryIcon    },
-  { id: "products",   label: "Products",      Icon: ProductsIcon   },
   { id: "categories", label: "Categories",    Icon: CategoriesIcon },
   { id: "inventory",  label: "Inventory",     Icon: InventoryIcon  },
   { id: "users",      label: "Users",         Icon: UsersIcon,     adminOnly: true },

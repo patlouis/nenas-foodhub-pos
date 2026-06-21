@@ -215,11 +215,13 @@ export default function CategoriesPage() {
                   return (
                     <tr
                       key={c._id}
+                      onClick={isAdmin ? () => openEdit(c) : undefined}
                       onDragOver={isAdmin && isDragMode ? (e) => onDragOver(e, idx) : undefined}
                       onDrop={isAdmin && isDragMode ? (e) => onDrop(e, idx) : undefined}
                       onDragLeave={isAdmin && isDragMode ? () => setDragOverIdx(null) : undefined}
                       className={
                         "border-b border-[var(--border)] transition-colors last:border-0 " +
+                        (isAdmin ? "cursor-pointer " : "") +
                         (isBeingDragged ? "opacity-40 " : "") +
                         (isDropTarget ? "bg-[var(--accent-bg)] " : "hover:bg-[var(--social-bg)]")
                       }
@@ -252,10 +254,10 @@ export default function CategoriesPage() {
                       {isAdmin && (
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => openEdit(c)} title="Edit category" aria-label="Edit category" className={iconBtnCls}>
+                            <button onClick={(e) => { e.stopPropagation(); openEdit(c) }} title="Edit category" aria-label="Edit category" className={iconBtnCls}>
                               <PencilIcon />
                             </button>
-                            <button onClick={() => setDeleteTarget(c)} title="Delete category" aria-label="Delete category" className={iconBtnDangerCls}>
+                            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(c) }} title="Delete category" aria-label="Delete category" className={iconBtnDangerCls}>
                               <TrashIcon />
                             </button>
                           </div>
