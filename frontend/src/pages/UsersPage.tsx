@@ -207,7 +207,8 @@ export default function UsersPage() {
                 {paged.map((u) => (
                   <tr
                     key={u._id}
-                    className="border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--social-bg)]"
+                    onClick={() => openEdit(u)}
+                    className="cursor-pointer border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--social-bg)]"
                   >
                     <td className="px-4 py-3 font-medium text-[var(--text-h)]">{u.name}</td>
                     <td className="px-4 py-3 text-[var(--text)]">{u.email}</td>
@@ -218,10 +219,10 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(u)} title="Edit user" aria-label="Edit user" className={iconBtnCls}>
+                        <button onClick={(e) => { e.stopPropagation(); openEdit(u) }} title="Edit user" aria-label="Edit user" className={iconBtnCls}>
                           <PencilIcon />
                         </button>
-                        <button onClick={() => setDeleteTarget(u)} title="Delete user" aria-label="Delete user" className={iconBtnDangerCls}>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(u) }} title="Delete user" aria-label="Delete user" className={iconBtnDangerCls}>
                           <TrashIcon />
                         </button>
                       </div>

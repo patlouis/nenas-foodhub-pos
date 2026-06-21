@@ -350,7 +350,7 @@ export default function InventoryPage() {
                           {isAdmin ? (
                             <div className="flex justify-center">
                               <button
-                                onClick={() => handleToggleStatus(p)}
+                                onClick={(e) => { e.stopPropagation(); void handleToggleStatus(p) }}
                                 title={p.status === "disabled" ? "Enable product" : "Disable product"}
                                 className={`flex h-6 w-11 items-center rounded-full border transition-colors ${
                                   p.status !== "disabled"
