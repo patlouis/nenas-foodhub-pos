@@ -86,7 +86,7 @@ export default function OrderPage() {
     const catOrder = new Map(categories.map((c) => [c._id, c.order ?? 0]))
     return products
       .filter((p) => {
-        if (q) return p.name.toLowerCase().includes(q)
+        if (q) return p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q)
         return !category || (p.category ?? "") === category
       })
       .sort((a, b) => {

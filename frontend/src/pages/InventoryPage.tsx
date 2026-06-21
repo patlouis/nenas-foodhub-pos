@@ -82,7 +82,7 @@ export default function InventoryPage() {
     const q = query.trim().toLowerCase()
     const filtered = products.filter((p) => {
       if (categoryFilter && (p.category ?? "") !== categoryFilter) return false
-      return !q || p.name.toLowerCase().includes(q) || (catMap.get(p.category ?? "")?.name ?? "").toLowerCase().includes(q)
+      return !q || p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q) || (catMap.get(p.category ?? "")?.name ?? "").toLowerCase().includes(q)
     })
     return [...filtered].sort((a, b) => {
       let cmp = 0
