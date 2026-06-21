@@ -42,7 +42,12 @@ function Chip({
   )
 }
 
-export default function OrderPage() {
+interface OrderPageProps {
+  pendingBarcodeSku: string | null
+  onBarcodeConsumed: () => void
+}
+
+export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: OrderPageProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -80,6 +85,24 @@ export default function OrderPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (!pendingBarcodeSku || products.length === 0) return
+    const match = products.find(
+      (p) => p.sku && p.sku.toLowerCase() === pendingBarcodeSku.toLowerCase()
+    )
+    if (match) {
+      if (match.stock > 0 && match.status !== "disabled") {
+        addToCart(match)
+      } else {
+        setError(`"${match.name}" is unavailable`)
+      }
+    } else {
+      setError(`No product found for barcode: ${pendingBarcodeSku}`)
+    }
+    onBarcodeConsumed()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingBarcodeSku, products])
 
   const visibleProducts = useMemo(() => {
     const q = query.trim().toLowerCase()

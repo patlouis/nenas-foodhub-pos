@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Sidebar, { type Page } from "./components/Sidebar"
 import OrderPage from "./pages/OrderPage"
 import OrderHistoryPage from "./pages/OrderHistoryPage"
@@ -16,6 +16,39 @@ function App() {
   const [page, setPage] = useState<Page>(() => user?.role === "admin" ? "dashboard" : "order")
   const [navOpen, setNavOpen] = useState(false)
   const { theme, toggle } = useTheme()
+  const [pendingBarcodeSku, setPendingBarcodeSku] = useState<string | null>(null)
+
+  const barcodeBuffer = useRef("")
+  const barcodeLastKey = useRef(0)
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return
+
+      const now = Date.now()
+
+      if (e.key === "Enter") {
+        const sku = barcodeBuffer.current.trim()
+        barcodeBuffer.current = ""
+        if (sku.length > 0) {
+          setPendingBarcodeSku(sku)
+          setPage("order")
+          setNavOpen(false)
+        }
+        return
+      }
+
+      if (e.key.length === 1) {
+        if (now - barcodeLastKey.current > 100) barcodeBuffer.current = ""
+        barcodeBuffer.current += e.key
+        barcodeLastKey.current = now
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   // Not logged in → the login screen is the only thing reachable.
   if (!user) {
@@ -91,7 +124,7 @@ function App() {
 
         <main className="min-w-0 flex-1 overflow-y-auto">
           {page === "dashboard"  && user.role === "admin" && <DashboardPage />}
-          {page === "order"      && <OrderPage />}
+          {page === "order"      && <OrderPage pendingBarcodeSku={pendingBarcodeSku} onBarcodeConsumed={() => setPendingBarcodeSku(null)} />}
           {page === "history"    && <OrderHistoryPage />}
           {page === "products"   && <ProductsPage />}
           {page === "categories" && <CategoriesPage />}
