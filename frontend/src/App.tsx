@@ -33,8 +33,6 @@ function App() {
         barcodeBuffer.current = ""
         if (sku.length > 0) {
           setPendingBarcodeSku(sku)
-          setPage("order")
-          setNavOpen(false)
         }
         return
       }
@@ -49,6 +47,13 @@ function App() {
     document.addEventListener("keydown", onKeyDown)
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [])
+
+  useEffect(() => {
+    if (pendingBarcodeSku !== null) {
+      setPage("order")
+      setNavOpen(false)
+    }
+  }, [pendingBarcodeSku])
 
   // Not logged in → the login screen is the only thing reachable.
   if (!user) {
@@ -124,7 +129,9 @@ function App() {
 
         <main className="min-w-0 flex-1 overflow-y-auto">
           {page === "dashboard"  && user.role === "admin" && <DashboardPage />}
-          {page === "order"      && <OrderPage pendingBarcodeSku={pendingBarcodeSku} onBarcodeConsumed={() => setPendingBarcodeSku(null)} />}
+          <div className={page !== "order" ? "hidden" : ""}>
+            <OrderPage pendingBarcodeSku={pendingBarcodeSku} onBarcodeConsumed={() => setPendingBarcodeSku(null)} />
+          </div>
           {page === "history"    && <OrderHistoryPage />}
           {page === "products"   && <ProductsPage />}
           {page === "categories" && <CategoriesPage />}

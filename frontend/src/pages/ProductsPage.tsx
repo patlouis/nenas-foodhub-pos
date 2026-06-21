@@ -373,12 +373,8 @@ export default function ProductsPage() {
             </label>
           </div>
 
-          {/* Price + Cost Price */}
+          {/* Cost Price + Selling Price */}
           <div className="grid grid-cols-2 gap-3">
-            <label className={fieldLabelCls}>
-              Price (₱)
-              <input type="number" min="0" step="0.01" value={form.price || ""} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} placeholder="0.00" className={inputCls} />
-            </label>
             <label className={fieldLabelCls}>
               Cost price (₱)
               <input
@@ -388,6 +384,10 @@ export default function ProductsPage() {
                 placeholder="optional"
                 className={inputCls}
               />
+            </label>
+            <label className={fieldLabelCls}>
+              Selling price (₱)
+              <input type="number" min="0" step="0.01" value={form.price || ""} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} placeholder="0.00" className={inputCls} />
             </label>
           </div>
           {form.costPrice != null && form.price > 0 && (() => {
