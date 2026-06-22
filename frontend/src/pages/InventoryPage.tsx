@@ -18,7 +18,7 @@ const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "",
 function StockBadge({ stock }: { stock: number }) {
   if (stock === 0)
     return (
-      <span className="inline-flex items-center rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-500">
+      <span className="inline-flex items-center whitespace-nowrap rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-500">
         Out of stock
       </span>
     )
@@ -380,7 +380,7 @@ export default function InventoryPage() {
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 onClick={(e) => { e.stopPropagation(); openRestock(p) }}
-                                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
+                                className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
                               >
                                 <PlusIcon size={12} />
                                 Add stock
