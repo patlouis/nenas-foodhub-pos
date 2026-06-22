@@ -10,7 +10,7 @@ import {
   iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE, Paginator,
 } from "../components/ui"
 
-type SortKey = "name" | "sku" | "category" | "price" | "stock"
+type SortKey = "name" | "sku" | "category" | "costPrice" | "price" | "stock"
 type SortDir = "asc" | "desc"
 
 const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", costPrice: null, discountQty: null, discountPrice: null }
@@ -45,6 +45,7 @@ export default function InventoryPage() {
   const [sortKey, setSortKey] = useState<SortKey>("category")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
 
   // Add / edit modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -111,6 +112,8 @@ export default function InventoryPage() {
       let cmp = 0
       if (sortKey === "stock") {
         cmp = a.stock - b.stock
+      } else if (sortKey === "costPrice") {
+        cmp = (a.costPrice ?? -1) - (b.costPrice ?? -1)
       } else if (sortKey === "price") {
         cmp = a.price - b.price
       } else if (sortKey === "sku") {
@@ -126,10 +129,10 @@ export default function InventoryPage() {
     })
   }, [products, catMap, query, categoryFilter, sortKey, sortDir])
 
-  useEffect(() => { setPage(1) }, [query, categoryFilter, sortKey, sortDir])
+  useEffect(() => { setPage(1) }, [query, categoryFilter, sortKey, sortDir, pageSize])
 
-  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
-  const paged = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+  const paged = visible.slice((page - 1) * pageSize, page * pageSize)
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
@@ -306,7 +309,7 @@ export default function InventoryPage() {
                     <SortTh label="Name"     col="name"     sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <SortTh label="SKU"      col="sku"      sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <SortTh label="Category" col="category" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    {isAdmin && <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-[var(--text)]">Cost price</th>}
+                    {isAdmin && <SortTh label="Cost" col="costPrice" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                     <SortTh label="Price"      col="price"    align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <SortTh label="Stock"      col="stock"    align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <th className="w-24 px-4 py-3 text-center text-xs font-medium uppercase tracking-wide text-[var(--text)]">Status</th>
@@ -399,7 +402,7 @@ export default function InventoryPage() {
                   })}
                 </tbody>
               </TableCard>
-              <Paginator page={page} totalPages={totalPages} total={visible.length} onPage={setPage} />
+              <Paginator page={page} totalPages={totalPages} total={visible.length} pageSize={pageSize} onPage={setPage} onPageSize={(n) => setPageSize(n)} />
             </>
           )}
         </>

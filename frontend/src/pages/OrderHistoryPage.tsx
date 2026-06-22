@@ -116,6 +116,7 @@ export default function OrderHistoryPage() {
   const [sortKey, setSortKey] = useState<SortKey>("date")
   const [sortDir, setSortDir] = useState<SortDir>("desc") // newest first
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const isFirstLoad = useRef(true)
@@ -137,7 +138,7 @@ export default function OrderHistoryPage() {
     return () => clearTimeout(t)
   }, [query])
 
-  useEffect(() => { setPage(1) }, [debouncedQuery, dateMode, datePick, sortKey, sortDir])
+  useEffect(() => { setPage(1) }, [debouncedQuery, dateMode, datePick, sortKey, sortDir, pageSize])
 
   const fetchOrders = useCallback(async () => {
     if (isFirstLoad.current) setLoading(true)
@@ -156,7 +157,7 @@ export default function OrderHistoryPage() {
         }
       }
       const res = await ordersApi.list({
-        page, limit: PAGE_SIZE,
+        page, limit: pageSize,
         q: debouncedQuery || undefined,
         from, to,
         sortKey, sortDir,
@@ -170,7 +171,7 @@ export default function OrderHistoryPage() {
       setLoading(false)
       isFirstLoad.current = false
     }
-  }, [page, debouncedQuery, dateMode, datePick, sortKey, sortDir])
+  }, [page, pageSize, debouncedQuery, dateMode, datePick, sortKey, sortDir])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
@@ -410,7 +411,7 @@ export default function OrderHistoryPage() {
                 </tbody>
               </TableCard>
             </div>
-            <Paginator page={page} totalPages={totalPages} total={total} onPage={setPage} />
+            <Paginator page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} onPageSize={(n) => setPageSize(n)} />
             </>
           )}
         </>

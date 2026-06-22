@@ -23,6 +23,7 @@ export default function CategoriesPage() {
 
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Category | null>(null)
@@ -58,10 +59,10 @@ export default function CategoriesPage() {
     return [...filtered].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   }, [categories, query])
 
-  useEffect(() => { setPage(1) }, [query])
+  useEffect(() => { setPage(1) }, [query, pageSize])
 
-  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
-  const paged = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+  const paged = visible.slice((page - 1) * pageSize, page * pageSize)
 
   const isDragMode = !query.trim()
 
@@ -268,7 +269,7 @@ export default function CategoriesPage() {
                 })}
               </tbody>
             </TableCard>
-            <Paginator page={page} totalPages={totalPages} total={visible.length} onPage={setPage} />
+            <Paginator page={page} totalPages={totalPages} total={visible.length} pageSize={pageSize} onPage={setPage} onPageSize={(n) => setPageSize(n)} />
             </>
           )}
         </>

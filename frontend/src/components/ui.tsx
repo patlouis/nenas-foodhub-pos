@@ -252,21 +252,27 @@ export function EmptyState({ children }: { children: ReactNode }) {
 
 export const PAGE_SIZE = 5
 
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50]
+
 export function Paginator({
   page,
   totalPages,
   total,
+  pageSize = PAGE_SIZE,
   onPage,
+  onPageSize,
 }: {
   page: number
   totalPages: number
   total: number
+  pageSize?: number
   onPage: (p: number) => void
+  onPageSize?: (n: number) => void
 }) {
   if (total === 0) return null
 
-  const from = (page - 1) * PAGE_SIZE + 1
-  const to = Math.min(page * PAGE_SIZE, total)
+  const from = (page - 1) * pageSize + 1
+  const to = Math.min(page * pageSize, total)
 
   // Build page number list with ellipsis for long ranges
   const pages: (number | "…")[] = []
@@ -286,9 +292,22 @@ export function Paginator({
 
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <span className="text-sm tabular-nums text-[var(--text)]">
-        {from}–{to} of {total}
-      </span>
+      <div className="flex items-center gap-3">
+        <span className="text-sm tabular-nums text-[var(--text)]">
+          {from}–{to} of {total}
+        </span>
+        {onPageSize && (
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSize(Number(e.target.value))}
+            className={selectCls + " text-sm"}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        )}
+      </div>
       <div className="flex items-center gap-1">
         <button onClick={() => onPage(page - 1)} disabled={page === 1} aria-label="Previous page" className={chevronCls(page === 1)}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

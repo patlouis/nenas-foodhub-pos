@@ -24,6 +24,7 @@ export default function UsersPage() {
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<User | null>(null)
@@ -148,10 +149,10 @@ export default function UsersPage() {
     }
   }
 
-  useEffect(() => { setPage(1) }, [query, roleFilter, sortKey, sortDir])
+  useEffect(() => { setPage(1) }, [query, roleFilter, sortKey, sortDir, pageSize])
 
-  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
-  const paged = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+  const paged = visible.slice((page - 1) * pageSize, page * pageSize)
 
   const isFiltering = query.trim() !== "" || roleFilter !== "all"
 
@@ -231,7 +232,7 @@ export default function UsersPage() {
                 ))}
               </tbody>
             </TableCard>
-            <Paginator page={page} totalPages={totalPages} total={visible.length} onPage={setPage} />
+            <Paginator page={page} totalPages={totalPages} total={visible.length} pageSize={pageSize} onPage={setPage} onPageSize={(n) => setPageSize(n)} />
             </>
           )}
         </>
