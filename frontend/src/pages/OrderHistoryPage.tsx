@@ -34,6 +34,14 @@ function ItemsList({ items }: { items: import("../types").OrderItem[] }) {
   )
 }
 
+function StaffMealBadge() {
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded-full bg-purple-500/10 px-2.5 py-0.5 text-xs font-semibold text-purple-600">
+      Staff meal
+    </span>
+  )
+}
+
 function PaymentBadge({ method }: { method?: "cash" | "gcash" }) {
   return method === "gcash" ? (
     <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-500">
@@ -46,7 +54,7 @@ function PaymentBadge({ method }: { method?: "cash" | "gcash" }) {
   )
 }
 
-type SortKey = "date" | "cashier" | "total"
+type SortKey = "date" | "cashier" | "total" | "payment"
 type SortDir = "asc" | "desc"
 type DateMode = "all" | "month" | "week" | "day"
 
@@ -113,12 +121,14 @@ export default function OrderHistoryPage() {
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [dateMode, setDateMode] = useState<DateMode>("all")
   const [datePick, setDatePick] = useState("") // value for the active mode's picker
+  const [paymentType, setPaymentType] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("date")
   const [sortDir, setSortDir] = useState<SortDir>("desc") // newest first
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalAmount, setTotalAmount] = useState<number | undefined>(undefined)
   const isFirstLoad = useRef(true)
 
   function switchMode(mode: DateMode) {
@@ -138,7 +148,7 @@ export default function OrderHistoryPage() {
     return () => clearTimeout(t)
   }, [query])
 
-  useEffect(() => { setPage(1) }, [debouncedQuery, dateMode, datePick, sortKey, sortDir, pageSize])
+  useEffect(() => { setPage(1) }, [debouncedQuery, dateMode, datePick, paymentType, sortKey, sortDir, pageSize])
 
   const fetchOrders = useCallback(async () => {
     if (isFirstLoad.current) setLoading(true)
@@ -160,18 +170,20 @@ export default function OrderHistoryPage() {
         page, limit: pageSize,
         q: debouncedQuery || undefined,
         from, to,
+        paymentType: paymentType || undefined,
         sortKey, sortDir,
       })
       setOrders(res.data)
       setTotal(res.total)
       setTotalPages(res.totalPages)
+      setTotalAmount(res.totalAmount)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load orders")
     } finally {
       setLoading(false)
       isFirstLoad.current = false
     }
-  }, [page, pageSize, debouncedQuery, dateMode, datePick, sortKey, sortDir])
+  }, [page, pageSize, debouncedQuery, dateMode, datePick, paymentType, sortKey, sortDir])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
@@ -199,7 +211,8 @@ export default function OrderHistoryPage() {
     }
   }
 
-  const isFiltering = query.trim() !== "" || dateMode !== "all"
+
+  const isFiltering = query.trim() !== "" || dateMode !== "all" || paymentType !== ""
 
   return (
     <PageShell>
@@ -222,7 +235,7 @@ export default function OrderHistoryPage() {
             <div className="flex items-center gap-2">
               {/* Mode pills */}
               <div className="flex gap-1">
-                {(["all", "month", "week", "day"] as DateMode[]).map((m) => (
+                {(["all", "day", "week", "month"] as DateMode[]).map((m) => (
                   <button
                     key={m}
                     onClick={() => switchMode(m)}
@@ -266,8 +279,47 @@ export default function OrderHistoryPage() {
                   className="h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 />
               )}
+
+              {/* Payment filter — secondary, after date */}
+              <select
+                value={paymentType}
+                onChange={(e) => setPaymentType(e.target.value)}
+                className="h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              >
+                <option value="">All payments</option>
+                <option value="cash">Cash</option>
+                <option value="gcash">GCash</option>
+                <option value="staff_meal">Staff meal</option>
+              </select>
             </div>
           </Toolbar>
+
+          {paymentType === "staff_meal" && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 border-l-purple-500 bg-[var(--surface)] px-4 py-3 text-sm">
+              <div className="flex items-center gap-2.5">
+                <StaffMealBadge />
+                <span className="text-[var(--text)]">{total} meal{total === 1 ? "" : "s"} recorded</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text)]">No charge</span>
+                <span className="font-semibold tabular-nums text-purple-600">₱0.00</span>
+              </div>
+            </div>
+          )}
+          {totalAmount !== undefined && paymentType !== "staff_meal" && (
+            <div className={`mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 bg-[var(--surface)] px-4 py-3 text-sm ${paymentType === "gcash" ? "border-l-blue-500" : "border-l-emerald-500"}`}>
+              <div className="flex items-center gap-2.5">
+                <PaymentBadge method={paymentType as "cash" | "gcash"} />
+                <span className="text-[var(--text)]">{total} order{total === 1 ? "" : "s"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text)]">Total collected</span>
+                <span className="font-semibold tabular-nums text-[var(--text-h)]">
+                  ₱{totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          )}
 
           {total === 0 ? (
             <EmptyState>
@@ -280,6 +332,7 @@ export default function OrderHistoryPage() {
             <div className="flex flex-col gap-3 sm:hidden">
               {orders.map((o) => {
                 const voided = o.status === "voided"
+                const staffMeal = o.orderType === "staff_meal"
                 return (
                   <div
                     key={o._id}
@@ -296,17 +349,25 @@ export default function OrderHistoryPage() {
                               Voided
                             </span>
                           )}
+                          {staffMeal && (
+                            <span className="rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-purple-600">
+                              Staff meal
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className={`font-semibold tabular-nums text-[var(--text-h)] ${voided ? "line-through" : ""}`}>
+                        <span className={`font-semibold tabular-nums ${voided ? "line-through text-[var(--text-h)]" : staffMeal ? "text-purple-600" : "text-[var(--text-h)]"}`}>
                           ₱{o.total.toFixed(2)}
                         </span>
-                        <PaymentBadge method={o.paymentMethod} />
+                        {staffMeal ? <StaffMealBadge /> : <PaymentBadge method={o.paymentMethod} />}
                       </div>
                     </div>
 
                     <p className="mt-2 text-sm text-[var(--text)]">{o.cashierName ?? "—"}</p>
+                    {o.staffMealRecipient && (
+                      <p className="text-xs text-purple-600">For: {o.staffMealRecipient}</p>
+                    )}
 
                     <div className="mt-2">
                       <ItemsList items={o.items} />
@@ -344,7 +405,7 @@ export default function OrderHistoryPage() {
                   <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
                     <SortTh label="Date"    col="date"    className="w-56" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <SortTh label="Cashier" col="cashier" className="w-36" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    <th className="w-24 px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Payment</th>
+                    <SortTh label="Payment" col="payment" className="w-24" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Items</th>
                     <SortTh label="Total"   col="total"   align="right" className="w-32" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                     <th className="w-16 px-4 py-3" />
@@ -353,6 +414,7 @@ export default function OrderHistoryPage() {
                 <tbody>
                   {orders.map((o) => {
                     const voided = o.status === "voided"
+                    const staffMeal = o.orderType === "staff_meal"
                     return (
                     <tr
                       key={o._id}
@@ -371,16 +433,26 @@ export default function OrderHistoryPage() {
                               Voided
                             </span>
                           )}
+                          {staffMeal && (
+                            <span className="rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-purple-600">
+                              Staff meal
+                            </span>
+                          )}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-[var(--text)]">{o.cashierName ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <PaymentBadge method={o.paymentMethod} />
+                        <span className="text-[var(--text)]">{o.cashierName ?? "—"}</span>
+                        {o.staffMealRecipient && (
+                          <span className="block text-xs text-purple-600">For: {o.staffMealRecipient}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {staffMeal ? <StaffMealBadge /> : <PaymentBadge method={o.paymentMethod} />}
                       </td>
                       <td className="px-4 py-3">
                         <ItemsList items={o.items} />
                       </td>
-                      <td className={`px-4 py-3 text-right font-medium tabular-nums text-[var(--text-h)] ${voided ? "line-through" : ""}`}>
+                      <td className={`px-4 py-3 text-right font-medium tabular-nums ${voided ? "line-through text-[var(--text-h)]" : staffMeal ? "text-purple-600" : "text-[var(--text-h)]"}`}>
                         ₱{o.total.toFixed(2)}
                       </td>
                       <td className="px-4 py-3">
@@ -428,10 +500,21 @@ export default function OrderHistoryPage() {
             <div className="flex items-start justify-between gap-4 text-sm text-[var(--text)]">
               <div className="flex flex-col items-start gap-1">
                 <span>{formatDate(viewTarget.createdAt)}</span>
-                <PaymentBadge method={viewTarget.paymentMethod} />
+                {viewTarget.orderType === "staff_meal"
+                  ? <StaffMealBadge />
+                  : <PaymentBadge method={viewTarget.paymentMethod} />}
               </div>
               <span className="shrink-0">Cashier: <span className="text-[var(--text-h)]">{viewTarget.cashierName ?? "—"}</span></span>
             </div>
+
+            {viewTarget.orderType === "staff_meal" && viewTarget.status !== "voided" && (
+              <div className="rounded-lg bg-purple-500/10 px-3 py-2 text-sm text-purple-600">
+                Staff meal — no charge, stock deducted
+                {viewTarget.staffMealRecipient && (
+                  <span className="block font-medium">For: {viewTarget.staffMealRecipient}</span>
+                )}
+              </div>
+            )}
 
             {viewTarget.status === "voided" && (
               <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-500">

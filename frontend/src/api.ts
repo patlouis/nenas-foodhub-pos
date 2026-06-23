@@ -186,6 +186,7 @@ export interface OrderListParams {
   q?: string
   from?: string
   to?: string
+  paymentType?: string
   sortKey?: string
   sortDir?: string
   [key: string]: string | number | undefined
@@ -195,11 +196,11 @@ export const ordersApi = {
   list: (params?: OrderListParams) =>
     watchedFetch(`${ORDERS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Order>>),
 
-  create: (items: NewOrderItem[], paymentMethod: "cash" | "gcash" = "cash") =>
+  create: (items: NewOrderItem[], paymentMethod: "cash" | "gcash" = "cash", orderType: "sale" | "staff_meal" = "sale", staffMealRecipient?: string) =>
     watchedFetch(ORDERS, {
       method: "POST",
       headers: jsonHeaders(),
-      body: JSON.stringify({ items, paymentMethod }),
+      body: JSON.stringify({ items, paymentMethod, orderType, staffMealRecipient }),
     }).then(handle<Order>),
 
   void: (id: string) =>

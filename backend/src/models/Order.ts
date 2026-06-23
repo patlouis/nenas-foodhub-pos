@@ -18,6 +18,8 @@ export interface IOrder {
   total: number;
   cashier?: mongoose.Types.ObjectId;
   cashierName?: string; // snapshot, same reasoning as item names
+  orderType: "sale" | "staff_meal";
+  staffMealRecipient?: string; // snapshot name of the staff member who received the meal
   paymentMethod: "cash" | "gcash";
   status: "completed" | "voided";
   voidedAt?: Date;
@@ -50,6 +52,8 @@ const orderSchema = new mongoose.Schema<IOrder>(
     total: { type: Number, required: true, min: 0 },
     cashier: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     cashierName: { type: String }, // snapshot, same reasoning as item names
+    orderType: { type: String, enum: ["sale", "staff_meal"], default: "sale" },
+    staffMealRecipient: { type: String },
     paymentMethod: { type: String, enum: ["cash", "gcash"], default: "cash" },
     status: { type: String, enum: ["completed", "voided"], default: "completed" },
     voidedAt: { type: Date },

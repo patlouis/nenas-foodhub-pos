@@ -3,7 +3,7 @@ import type { Order, Product, Category } from "../types"
 import { ordersApi, productsApi, categoriesApi } from "../api"
 import { ErrorBanner, PageShell } from "../components/ui"
 
-type DateMode = "day" | "week" | "month"
+type DateMode = "all" | "day" | "week" | "month"
 
 // ---- date helpers (mirrors OrderHistoryPage) ----
 function toDateStr(d: Date)  { return d.toLocaleDateString("sv") }
@@ -61,6 +61,7 @@ function inRange(o: Order, from: Date, to: Date): boolean {
 }
 
 function periodLabel(mode: DateMode, pick: string): string {
+  if (mode === "all") return "All time"
   if (!pick) return ""
   if (mode === "day") {
     return new Date(pick + "T12:00:00").toLocaleDateString("en", {
@@ -75,6 +76,7 @@ function periodLabel(mode: DateMode, pick: string): string {
 }
 
 const PREV_LABEL: Record<DateMode, string> = {
+  all:   "",
   day:   "vs prev day",
   week:  "vs prev week",
   month: "vs prev month",
@@ -266,6 +268,7 @@ export default function DashboardPage() {
     if (mode === "day")        setDatePick(toDateStr(now))
     else if (mode === "week")  setDatePick(toWeekStr(now))
     else if (mode === "month") setDatePick(toMonthStr(now))
+    else                       setDatePick("")
   }
 
   useEffect(() => {
@@ -293,12 +296,15 @@ export default function DashboardPage() {
     [dateMode, datePick],
   )
   const [prvFrom, prvTo] = useMemo(
-    () => getPrevRange(dateMode, curFrom),
+    () => dateMode === "all" ? [new Date(0), new Date(0)] : getPrevRange(dateMode, curFrom),
     [dateMode, curFrom],
   )
 
-  // Voided orders never happened — exclude them from every metric below.
-  const activeOrders = useMemo(() => orders.filter((o) => o.status !== "voided"), [orders])
+  // Voided and staff meal orders are excluded from all revenue/profit metrics.
+  const activeOrders = useMemo(
+    () => orders.filter((o) => o.status !== "voided" && o.orderType !== "staff_meal"),
+    [orders],
+  )
 
   const curOrders = useMemo(
     () => activeOrders.filter((o) => inRange(o, curFrom, curTo)),
@@ -347,6 +353,25 @@ export default function DashboardPage() {
 
   // Revenue trend — adapts to selected mode
   const revenueTrend = useMemo(() => {
+    if (dateMode === "all") {
+      if (activeOrders.length === 0) return []
+      const earliest = activeOrders.reduce((min, o) => {
+        const d = new Date(o.createdAt!)
+        return d < min ? d : min
+      }, new Date())
+      const bars: { label: string; value: number }[] = []
+      const cursor = new Date(earliest.getFullYear(), earliest.getMonth(), 1)
+      const now = new Date()
+      while (cursor <= now) {
+        const [mFrom, mTo] = monthRange(toMonthStr(cursor))
+        const value = activeOrders
+          .filter((o) => o.createdAt && inRange(o, mFrom, mTo))
+          .reduce((s, o) => s + o.total, 0)
+        bars.push({ label: cursor.toLocaleDateString("en", { month: "short", year: "2-digit" }), value })
+        cursor.setMonth(cursor.getMonth() + 1)
+      }
+      return bars
+    }
     if (!datePick) return []
     if (dateMode === "day") {
       const hourLabel = (h: number) =>
@@ -388,7 +413,7 @@ export default function DashboardPage() {
     })
   }, [dateMode, datePick, curOrders, activeOrders])
 
-  const trendTitle = dateMode === "day" ? "Hourly Revenue" : "Daily Revenue"
+  const trendTitle = dateMode === "day" ? "Hourly Revenue" : dateMode === "all" ? "Monthly Revenue" : "Daily Revenue"
 
   // Top products
   const topProducts = useMemo(() => {
@@ -472,7 +497,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           {/* Mode pills */}
           <div className="flex gap-1">
-            {(["day", "week", "month"] as DateMode[]).map((m) => (
+            {(["all", "day", "week", "month"] as DateMode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => switchMode(m)}
@@ -483,7 +508,7 @@ export default function DashboardPage() {
                     : "border border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)] hover:text-[var(--text-h)]")
                 }
               >
-                {m.charAt(0).toUpperCase() + m.slice(1)}
+                {m === "all" ? "All" : m.charAt(0).toUpperCase() + m.slice(1)}
               </button>
             ))}
           </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Product, Category } from "../types"
-import { productsApi, categoriesApi, ordersApi } from "../api"
+import type { Product, Category, User } from "../types"
+import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
 import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls } from "../components/ui"
 
@@ -58,6 +58,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
   const [cart, setCart] = useState<CartLine[]>([])
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
   const [amountTendered, setAmountTendered] = useState("")
+  const [isStaffMeal, setIsStaffMeal] = useState(false)
+  const [staffMealRecipient, setStaffMealRecipient] = useState("")
+  const [users, setUsers] = useState<User[]>([])
+  const [usersLoaded, setUsersLoaded] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -85,6 +89,12 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (isStaffMeal && !usersLoaded) {
+      usersApi.list().then((u) => { setUsers(u); setUsersLoaded(true) }).catch(() => {})
+    }
+  }, [isStaffMeal, usersLoaded])
 
   useEffect(() => {
     if (!pendingBarcodeSku || products.length === 0) return
@@ -168,12 +178,16 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
       const order = await ordersApi.create(
         cart.map((l) => ({ productId: l.product._id, quantity: l.quantity })),
         paymentMethod,
+        isStaffMeal ? "staff_meal" : "sale",
+        isStaffMeal && staffMealRecipient ? staffMealRecipient : undefined,
       )
       setCart([])
       setPaymentMethod("cash")
       setAmountTendered("")
+      setIsStaffMeal(false)
+      setStaffMealRecipient("")
       const num = order.orderNumber != null ? `#${String(order.orderNumber).padStart(4, "0")}` : ""
-      setSuccess(`Order ${num} placed — ₱${order.total.toFixed(2)}`)
+      setSuccess(isStaffMeal ? `Staff meal ${num} recorded` : `Order ${num} placed — ₱${order.total.toFixed(2)}`)
       await load() // stock changed on the server
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to place order")
@@ -262,7 +276,20 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
       {/* ---- Receipt ---- */}
       <aside className="flex w-full shrink-0 flex-col border-t border-[var(--border)] sm:w-72 sm:border-l sm:border-t-0 lg:w-96">
         <div className="border-b border-[var(--border)] px-5 py-4">
-          <h2 className="m-0 text-lg">Current order</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="m-0 text-lg">Current order</h2>
+            <button
+              onClick={() => { setIsStaffMeal((v) => !v); setAmountTendered(""); setStaffMealRecipient("") }}
+              className={
+                "h-8 rounded-lg border px-3 text-xs font-medium transition " +
+                (isStaffMeal
+                  ? "border-purple-500 bg-purple-500/10 text-purple-600"
+                  : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)]")
+              }
+            >
+              Staff meal
+            </button>
+          </div>
         </div>
 
         <div className="max-h-56 overflow-y-auto px-5 py-4 sm:max-h-none sm:min-h-40 sm:flex-1">
@@ -337,12 +364,33 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
             <span className="text-sm text-[var(--text)]">
               Total{itemCount > 0 && ` · ${itemCount} item${itemCount === 1 ? "" : "s"}`}
             </span>
-            <span className="text-xl font-semibold tabular-nums text-[var(--text-h)]">
-              ₱{total.toFixed(2)}
-            </span>
+            {isStaffMeal ? (
+              <span className="text-xl font-semibold tabular-nums text-purple-600">₱0.00</span>
+            ) : (
+              <span className="text-xl font-semibold tabular-nums text-[var(--text-h)]">
+                ₱{total.toFixed(2)}
+              </span>
+            )}
           </div>
 
-          {/* Payment method toggle */}
+          {/* Recipient selector — staff meal only */}
+          {isStaffMeal && (
+            <div className="mb-3">
+              <select
+                value={staffMealRecipient}
+                onChange={(e) => setStaffMealRecipient(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text-h)] outline-none transition focus-visible:ring-2 focus-visible:ring-purple-500"
+              >
+                <option value="">Staff member (optional)</option>
+                {users.map((u) => (
+                  <option key={u._id} value={u.name}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Payment method toggle — hidden for staff meals */}
+          {!isStaffMeal && (
           <div className="mb-3 flex gap-2">
             {(["cash", "gcash"] as const).map((m) => (
               <button
@@ -361,9 +409,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
               </button>
             ))}
           </div>
+          )}
 
-          {/* Amount tendered + change — cash only */}
-          {paymentMethod === "cash" && cart.length > 0 && (() => {
+          {/* Amount tendered + change — cash only, not for staff meals */}
+          {!isStaffMeal && paymentMethod === "cash" && cart.length > 0 && (() => {
             const tendered = parseFloat(amountTendered) || 0
             const change = tendered - total
             const short = amountTendered !== "" && tendered < total
@@ -398,10 +447,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
 
           <button
             onClick={submit}
-            disabled={cart.length === 0 || submitting || (paymentMethod === "cash" && amountTendered !== "" && (parseFloat(amountTendered) || 0) < total)}
-            className={`${btnPrimaryCls} w-full`}
+            disabled={cart.length === 0 || submitting || (!isStaffMeal && paymentMethod === "cash" && amountTendered !== "" && (parseFloat(amountTendered) || 0) < total)}
+            className={`${btnPrimaryCls} w-full ${isStaffMeal ? "bg-purple-600 hover:bg-purple-700 focus-visible:ring-purple-500" : ""}`}
           >
-            {submitting ? "Placing order…" : "Place order"}
+            {submitting ? (isStaffMeal ? "Recording…" : "Placing order…") : (isStaffMeal ? "Record staff meal" : "Place order")}
           </button>
         </div>
       </aside>

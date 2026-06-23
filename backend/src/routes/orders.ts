@@ -19,9 +19,15 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid query" });
     }
-    const { page, limit, q, from, to, sortKey, sortDir } = parsed.data;
+    const { page, limit, q, from, to, paymentType, sortKey, sortDir } = parsed.data;
 
     const filter: Record<string, unknown> = {};
+    if (paymentType === "staff_meal") {
+      filter.orderType = "staff_meal";
+    } else if (paymentType) {
+      filter.orderType = { $ne: "staff_meal" };
+      filter.paymentMethod = paymentType;
+    }
     if (from || to) {
       const range: { $gte?: Date; $lte?: Date } = {};
       if (from) range.$gte = new Date(from);
@@ -40,17 +46,21 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
       filter.$or = or;
     }
 
-    const sortField = sortKey === "cashier" ? "cashierName" : sortKey === "total" ? "total" : "createdAt";
-    const sort: Record<string, 1 | -1> = { [sortField]: sortDir === "asc" ? 1 : -1 };
+    const dir: 1 | -1 = sortDir === "asc" ? 1 : -1;
+    const sort: Record<string, 1 | -1> =
+      sortKey === "payment"
+        ? { orderType: dir, paymentMethod: dir } // groups staff_meal, then cash/gcash
+        : { [sortKey === "cashier" ? "cashierName" : sortKey === "total" ? "total" : "createdAt"]: dir };
 
-    const [orders, total] = await Promise.all([
-      Order.find(filter)
-        .sort(sort)
-        .skip((page - 1) * limit)
-        .limit(limit),
+    const [orders, total, amountAgg] = await Promise.all([
+      Order.find(filter).sort(sort).skip((page - 1) * limit).limit(limit),
       Order.countDocuments(filter),
+      paymentType
+        ? Order.aggregate([{ $match: filter }, { $group: { _id: null, sum: { $sum: "$total" } } }])
+        : Promise.resolve(null),
     ]);
-    res.json(paginate(orders, page, limit, total));
+    const totalAmount = amountAgg ? (amountAgg[0]?.sum ?? 0) : undefined;
+    res.json(paginate(orders, page, limit, total, totalAmount));
   } catch (err) {
     next(err);
   }
@@ -63,6 +73,8 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
 router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Request, res: Response) => {
   const rawItems = req.body.items as { productId: string; quantity: number }[];
   const paymentMethod: "cash" | "gcash" = req.body.paymentMethod ?? "cash";
+  const orderType: "sale" | "staff_meal" = req.body.orderType ?? "sale";
+  const staffMealRecipient: string | undefined = req.body.staffMealRecipient || undefined;
 
   // Merge duplicate products into one line.
   const qtyById = new Map<string, number>();
@@ -103,10 +115,10 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
   try {
     const orderItems = items.map((it) => {
       const p = byId.get(it.productId)!;
-      const lineTotal = computeLineTotal(p, it.quantity);
+      const lineTotal = orderType === "staff_meal" ? 0 : computeLineTotal(p, it.quantity);
       return { product: p._id, name: p.name, price: p.price, costPrice: p.costPrice ?? null, quantity: it.quantity, lineTotal };
     });
-    const total = orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
+    const total = orderType === "staff_meal" ? 0 : orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
 
     const last = await Order.findOne({}, { orderNumber: 1 }).sort({ orderNumber: -1 });
     let orderNumber = (last?.orderNumber ?? 0) + 1;
@@ -114,7 +126,7 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     let order;
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
-        order = await Order.create({ orderNumber, items: orderItems, total, cashier: req.user!.sub, cashierName: req.user!.name, paymentMethod });
+        order = await Order.create({ orderNumber, items: orderItems, total, cashier: req.user!.sub, cashierName: req.user!.name, orderType, staffMealRecipient, paymentMethod });
         break;
       } catch (err: any) {
         if (err.code !== 11000) throw err;

@@ -43,6 +43,8 @@ export interface Order {
   items: OrderItem[]
   total: number
   cashierName?: string
+  orderType?: "sale" | "staff_meal"
+  staffMealRecipient?: string
   paymentMethod?: "cash" | "gcash"
   createdAt?: string
   status?: "completed" | "voided"
@@ -63,6 +65,7 @@ export interface Paginated<T> {
   limit: number
   total: number
   totalPages: number
+  totalAmount?: number
 }
 
 export type Role = "admin" | "cashier"

@@ -15,8 +15,9 @@ export interface Paginated<T> {
   limit: number;
   total: number;
   totalPages: number;
+  totalAmount?: number;
 }
 
-export function paginate<T>(data: T[], page: number, limit: number, total: number): Paginated<T> {
-  return { data, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+export function paginate<T>(data: T[], page: number, limit: number, total: number, totalAmount?: number): Paginated<T> {
+  return { data, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)), ...(totalAmount !== undefined ? { totalAmount } : {}) };
 }

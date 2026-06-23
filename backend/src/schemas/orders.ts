@@ -14,12 +14,15 @@ export const createOrderSchema = z.object({
     )
     .min(1, "Order must contain at least one item"),
   paymentMethod: z.enum(["cash", "gcash"]).optional().default("cash"),
+  orderType: z.enum(["sale", "staff_meal"]).optional().default("sale"),
+  staffMealRecipient: z.string().trim().optional(),
 });
 
 export const listOrdersQuerySchema = paginationQuerySchema(1000).extend({
   q: z.string().trim().optional(),
   from: z.string().optional(),
   to: z.string().optional(),
-  sortKey: z.enum(["date", "cashier", "total"]).optional().default("date"),
+  paymentType: z.enum(["cash", "gcash", "staff_meal"]).optional(),
+  sortKey: z.enum(["date", "cashier", "total", "payment"]).optional().default("date"),
   sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
 });
