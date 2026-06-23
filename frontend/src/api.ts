@@ -13,6 +13,25 @@ const ORDERS = `${BASE}/api/orders`
 // drops the app back to the login screen.
 export const AUTH_EXPIRED_EVENT = "auth:expired"
 
+// Fired when any request takes > 5 s (server is cold-starting on Render free
+// tier). WAKE_COMPLETE fires once all slow requests finish.
+export const WAKING_UP_EVENT = "server:waking-up"
+export const WAKE_COMPLETE_EVENT = "server:wake-complete"
+
+let slowCount = 0
+
+function watchedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  let timerFired = false
+  const timer = setTimeout(() => {
+    timerFired = true
+    if (++slowCount === 1) window.dispatchEvent(new Event(WAKING_UP_EVENT))
+  }, 5000)
+  return watchedFetch(input, init).finally(() => {
+    clearTimeout(timer)
+    if (timerFired && --slowCount === 0) window.dispatchEvent(new Event(WAKE_COMPLETE_EVENT))
+  })
+}
+
 export function clearStoredAuth() {
   localStorage.removeItem("token")
   localStorage.removeItem("user")
@@ -57,7 +76,7 @@ async function handle<T>(res: Response): Promise<T> {
 
 export const authApi = {
   login: (email: string, password: string) =>
-    fetch(`${BASE}/api/auth/login`, {
+    watchedFetch(`${BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -65,31 +84,31 @@ export const authApi = {
 }
 
 export const categoriesApi = {
-  list: () => fetch(CATEGORIES, { headers: authHeaders() }).then(handle<Category[]>),
+  list: () => watchedFetch(CATEGORIES, { headers: authHeaders() }).then(handle<Category[]>),
 
   create: (data: NewCategory) =>
-    fetch(CATEGORIES, {
+    watchedFetch(CATEGORIES, {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify(data),
     }).then(handle<Category>),
 
   update: (id: string, data: NewCategory) =>
-    fetch(`${CATEGORIES}/${id}`, {
+    watchedFetch(`${CATEGORIES}/${id}`, {
       method: "PUT",
       headers: jsonHeaders(),
       body: JSON.stringify(data),
     }).then(handle<Category>),
 
   reorder: (items: { id: string; order: number }[]) =>
-    fetch(`${CATEGORIES}/reorder`, {
+    watchedFetch(`${CATEGORIES}/reorder`, {
       method: "PUT",
       headers: jsonHeaders(),
       body: JSON.stringify({ items }),
     }).then(handle<{ ok: boolean }>),
 
   remove: (id: string) =>
-    fetch(`${CATEGORIES}/${id}`, {
+    watchedFetch(`${CATEGORIES}/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
     }).then(handle<{ ok: boolean }>),
@@ -107,55 +126,55 @@ export interface ProductListParams {
 
 export const productsApi = {
   list: (params?: ProductListParams) =>
-    fetch(`${PRODUCTS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Product>>),
+    watchedFetch(`${PRODUCTS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Product>>),
 
   create: (data: NewProduct) =>
-    fetch(PRODUCTS, {
+    watchedFetch(PRODUCTS, {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify(data),
     }).then(handle<Product>),
 
   update: (id: string, data: Partial<NewProduct>) =>
-    fetch(`${PRODUCTS}/${id}`, {
+    watchedFetch(`${PRODUCTS}/${id}`, {
       method: "PUT",
       headers: jsonHeaders(),
       body: JSON.stringify(data),
     }).then(handle<Product>),
 
   adjustStock: (id: string, delta: number) =>
-    fetch(`${PRODUCTS}/${id}/stock`, {
+    watchedFetch(`${PRODUCTS}/${id}/stock`, {
       method: "PATCH",
       headers: jsonHeaders(),
       body: JSON.stringify({ delta }),
     }).then(handle<Product>),
 
   remove: (id: string) =>
-    fetch(`${PRODUCTS}/${id}`, {
+    watchedFetch(`${PRODUCTS}/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
     }).then(handle<{ ok: boolean }>),
 }
 
 export const usersApi = {
-  list: () => fetch(USERS, { headers: authHeaders() }).then(handle<User[]>),
+  list: () => watchedFetch(USERS, { headers: authHeaders() }).then(handle<User[]>),
 
   create: (data: NewUser) =>
-    fetch(USERS, {
+    watchedFetch(USERS, {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify(data),
     }).then(handle<User>),
 
   update: (id: string, data: Partial<NewUser>) =>
-    fetch(`${USERS}/${id}`, {
+    watchedFetch(`${USERS}/${id}`, {
       method: "PUT",
       headers: jsonHeaders(),
       body: JSON.stringify(data),
     }).then(handle<User>),
 
   remove: (id: string) =>
-    fetch(`${USERS}/${id}`, {
+    watchedFetch(`${USERS}/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
     }).then(handle<{ ok: boolean }>),
@@ -174,17 +193,17 @@ export interface OrderListParams {
 
 export const ordersApi = {
   list: (params?: OrderListParams) =>
-    fetch(`${ORDERS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Order>>),
+    watchedFetch(`${ORDERS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Order>>),
 
   create: (items: NewOrderItem[], paymentMethod: "cash" | "gcash" = "cash") =>
-    fetch(ORDERS, {
+    watchedFetch(ORDERS, {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ items, paymentMethod }),
     }).then(handle<Order>),
 
   void: (id: string) =>
-    fetch(`${ORDERS}/${id}/void`, {
+    watchedFetch(`${ORDERS}/${id}/void`, {
       method: "PATCH",
       headers: authHeaders(),
     }).then(handle<Order>),

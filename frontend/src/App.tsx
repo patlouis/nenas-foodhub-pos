@@ -9,6 +9,15 @@ import DashboardPage from "./pages/DashboardPage"
 import LoginPage from "./pages/LoginPage"
 import { useTheme } from "./useTheme"
 import { useAuth } from "./auth"
+import { WAKING_UP_EVENT, WAKE_COMPLETE_EVENT } from "./api"
+
+function WakingUpBanner() {
+  return (
+    <div className="fixed inset-x-0 top-0 z-50 bg-amber-500 py-2 px-4 text-center text-sm font-medium text-white shadow-md">
+      Server is waking up — please wait up to 30 seconds…
+    </div>
+  )
+}
 
 function App() {
   const { user, logout } = useAuth()
@@ -16,6 +25,18 @@ function App() {
   const [navOpen, setNavOpen] = useState(false)
   const { theme, toggle } = useTheme()
   const [pendingBarcodeSku, setPendingBarcodeSku] = useState<string | null>(null)
+  const [wakingUp, setWakingUp] = useState(false)
+
+  useEffect(() => {
+    const show = () => setWakingUp(true)
+    const hide = () => setWakingUp(false)
+    window.addEventListener(WAKING_UP_EVENT, show)
+    window.addEventListener(WAKE_COMPLETE_EVENT, hide)
+    return () => {
+      window.removeEventListener(WAKING_UP_EVENT, show)
+      window.removeEventListener(WAKE_COMPLETE_EVENT, hide)
+    }
+  }, [])
 
   const barcodeBuffer = useRef("")
   const barcodeLastKey = useRef(0)
@@ -56,7 +77,7 @@ function App() {
 
   // Not logged in → the login screen is the only thing reachable.
   if (!user) {
-    return <LoginPage />
+    return <>{wakingUp && <WakingUpBanner />}<LoginPage /></>
   }
 
   function go(next: Page) {
@@ -66,6 +87,7 @@ function App() {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden">
+      {wakingUp && <WakingUpBanner />}
       <Sidebar
         current={page}
         onNavigate={go}
