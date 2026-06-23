@@ -26,7 +26,7 @@ function watchedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Res
     timerFired = true
     if (++slowCount === 1) window.dispatchEvent(new Event(WAKING_UP_EVENT))
   }, 5000)
-  return watchedFetch(input, init).finally(() => {
+  return fetch(input, init).finally(() => {
     clearTimeout(timer)
     if (timerFired && --slowCount === 0) window.dispatchEvent(new Event(WAKE_COMPLETE_EVENT))
   })
