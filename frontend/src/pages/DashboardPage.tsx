@@ -618,8 +618,8 @@ export default function DashboardPage() {
 
       {/* Inventory alerts + recent orders */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <div className="mb-4 flex items-center gap-2">
+        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 max-h-[360px]">
+          <div className="mb-4 shrink-0 flex items-center gap-2">
             <p className="text-sm font-semibold text-[var(--text-h)]">Stock Alerts</p>
             {(outOfStock.length > 0 || lowStock.length > 0) && (
               <span className="rounded-full bg-yellow-400/20 px-2 py-0.5 text-xs font-medium text-yellow-600">
@@ -630,7 +630,7 @@ export default function DashboardPage() {
           {outOfStock.length === 0 && lowStock.length === 0 ? (
             <p className="text-sm text-green-600">All products are well-stocked.</p>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-2">
               {outOfStock.map((p) => {
                 const catName = p.category ? categories.find((c) => c._id === p.category)?.name : undefined
                 return (
@@ -659,12 +659,12 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <p className="mb-4 text-sm font-semibold text-[var(--text-h)]">Recent Orders</p>
+        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 max-h-[360px]">
+          <p className="mb-4 shrink-0 text-sm font-semibold text-[var(--text-h)]">Recent Orders</p>
           {recentOrders.length === 0 ? (
             <p className="text-sm text-[var(--text)]">No orders for this period.</p>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-2">
               {recentOrders.map((o) => (
                 <div key={o._id} className="flex items-center gap-3 rounded-lg bg-[var(--social-bg)] px-3 py-2.5">
                   <div className="min-w-0 flex-1">
