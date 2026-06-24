@@ -237,13 +237,14 @@ export default function CategoriesPage() {
                         </td>
                       )}
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className="h-3 w-3 shrink-0 rounded-full"
-                            style={{ backgroundColor: c.color || DEFAULT_COLOR }}
-                          />
-                          <span className="font-medium text-[var(--text-h)]">{c.name}</span>
-                        </div>
+                        <span
+                          className="inline-flex items-center rounded-full border border-[var(--border)] px-3 py-1 text-sm font-medium text-[var(--text-h)]"
+                          style={{
+                            backgroundColor: `color-mix(in srgb, ${c.color || DEFAULT_COLOR} 28%, var(--social-bg))`,
+                          }}
+                        >
+                          {c.name}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">
                         {c.productCount ? (

@@ -2,7 +2,7 @@
 
 /* ---- Design tokens (light is the default) ---- */
 :root {
-  --text: #6b6375;
+  --text: #565060;
   --text-h: #08060d;
   --bg: #fff;
   --surface: #faf9fb;
@@ -19,7 +19,7 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 16px/145% var(--sans);
+  font: 17px/150% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light;
   color: var(--text);
@@ -34,7 +34,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --text: #9ca3af;
+    --text: #aeb6c2;
     --text-h: #f3f4f6;
     --bg: #16171d;
     --surface: #1b1c23;
@@ -50,7 +50,7 @@
 }
 
 :root[data-theme='dark'] {
-  --text: #9ca3af;
+  --text: #aeb6c2;
   --text-h: #f3f4f6;
   --bg: #16171d;
   --surface: #1b1c23;
@@ -89,13 +89,13 @@ h2 {
 }
 
 h1 {
-  font-size: 28px;
+  font-size: 1.75rem;
   letter-spacing: -0.6px;
   margin: 0 0 16px;
 }
 
 h2 {
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 118%;
   letter-spacing: -0.24px;
   margin: 0 0 8px;

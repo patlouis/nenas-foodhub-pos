@@ -162,7 +162,7 @@ function App() {
         <main className="min-w-0 flex-1 overflow-y-auto">
           {page === "dashboard"  && user.role === "admin" && <DashboardPage />}
           <div className={page !== "order" ? "hidden" : ""}>
-            <OrderPage pendingBarcodeSku={pendingBarcodeSku} onBarcodeConsumed={() => setPendingBarcodeSku(null)} />
+            <OrderPage active={page === "order"} pendingBarcodeSku={pendingBarcodeSku} onBarcodeConsumed={() => setPendingBarcodeSku(null)} />
           </div>
           {page === "history"    && <OrderHistoryPage />}
 {page === "categories" && <CategoriesPage />}

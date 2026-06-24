@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { Product, Category, User } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
@@ -9,6 +9,19 @@ type CartLine = { product: Product; quantity: number }
 const qtyBtnCls =
   "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-h)] transition hover:bg-[var(--social-bg)] disabled:cursor-not-allowed disabled:opacity-40"
 
+// Pick black or white text for a solid color fill, based on perceived luminance,
+// so an active chip stays readable for any category color (e.g. yellow).
+function readableTextOn(hex: string): string {
+  let h = hex.replace("#", "").trim()
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("")
+  if (h.length !== 6) return "#ffffff"
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.6 ? "#1a1a1a" : "#ffffff"
+}
+
 function Chip({
   active, onClick, color, children,
 }: {
@@ -17,26 +30,26 @@ function Chip({
   color?: string
   children: React.ReactNode
 }) {
-  const activeStyle = active && color ? { backgroundColor: color, borderColor: color } : undefined
+  const style = color
+    ? active
+      ? { backgroundColor: color, borderColor: color, color: readableTextOn(color) }
+      : { backgroundColor: `color-mix(in srgb, ${color} 30%, var(--social-bg))` }
+    : undefined
   return (
     <button
       onClick={onClick}
-      style={activeStyle}
+      style={style}
       className={
-        "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-4 text-sm transition-colors " +
+        "inline-flex h-10 shrink-0 cursor-pointer items-center rounded-full border px-5 text-sm font-medium transition-colors " +
         (active
           ? color
-            ? "font-medium text-white border-transparent"
-            : "border-transparent bg-[var(--accent)] font-medium text-white"
-          : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)] hover:text-[var(--text-h)]")
+            ? "border-transparent"
+            : "border-transparent bg-[var(--accent)] text-white"
+          : color
+            ? "border-[var(--border)] text-[var(--text-h)] hover:brightness-110"
+            : "border-[var(--border)] font-normal text-[var(--text)] hover:bg-[var(--social-bg)] hover:text-[var(--text-h)]")
       }
     >
-      {color && (
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: active ? "rgba(255,255,255,0.75)" : color }}
-        />
-      )}
       {children}
     </button>
   )
@@ -45,9 +58,12 @@ function Chip({
 interface OrderPageProps {
   pendingBarcodeSku: string | null
   onBarcodeConsumed: () => void
+  /** True while this is the visible page. OrderPage stays mounted (to keep the
+   *  in-progress cart), so we refetch the menu whenever it becomes active. */
+  active: boolean
 }
 
-export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: OrderPageProps) {
+export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active }: OrderPageProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,7 +81,12 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Bumped on every load() call so a slower, older request can't overwrite the
+  // results of a newer one (e.g. navigating away and back quickly).
+  const loadToken = useRef(0)
+
   async function load() {
+    const token = ++loadToken.current
     setError(null)
     try {
       const [prodsResult, catsResult] = await Promise.allSettled([
@@ -73,6 +94,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
         productsApi.list({ limit: 500 }),
         categoriesApi.list(),
       ])
+      if (token !== loadToken.current) return // a newer load() superseded this one
       if (prodsResult.status === "fulfilled") {
         setProducts(prodsResult.value.data)
       } else {
@@ -82,13 +104,16 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed }: Orde
         setCategories(catsResult.value)
       }
     } catch (err) {
+      if (token !== loadToken.current) return
       setError(err instanceof Error ? err.message : "Failed to load the menu")
     } finally {
-      setLoading(false)
+      if (token === loadToken.current) setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  // Refetch whenever the page becomes active so CRUD done on other pages
+  // (inventory, categories) is always reflected here without a manual refresh.
+  useEffect(() => { if (active) load() }, [active])
 
   useEffect(() => {
     if (isStaffMeal && !usersLoaded) {

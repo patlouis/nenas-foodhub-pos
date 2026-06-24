@@ -332,10 +332,14 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 text-[var(--text)]">{p.sku || "—"}</td>
                         <td className="px-4 py-3">
                           {cat ? (
-                            <div className="flex items-center gap-2">
-                              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat.color }} />
-                              <span className="text-[var(--text)]">{cat.name}</span>
-                            </div>
+                            <span
+                              className="inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-h)]"
+                              style={{
+                                backgroundColor: `color-mix(in srgb, ${cat.color} 28%, var(--social-bg))`,
+                              }}
+                            >
+                              {cat.name}
+                            </span>
                           ) : (
                             <span className="text-[var(--text)]">—</span>
                           )}
