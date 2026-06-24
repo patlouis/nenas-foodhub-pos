@@ -7,6 +7,8 @@ type SidebarProps = {
   current: Page
   onNavigate: (page: Page) => void
   open: boolean
+  collapsed: boolean
+  onToggleCollapse: () => void
   theme: Theme
   onToggleTheme: () => void
   userName: string
@@ -99,6 +101,26 @@ function MoonIcon() {
   )
 }
 
+function MenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+
 const NAV_ITEMS: { id: Page; label: string; Icon: () => React.JSX.Element; adminOnly?: boolean }[] = [
   { id: "dashboard",  label: "Dashboard",     Icon: DashboardIcon, adminOnly: true },
   { id: "order",      label: "New Order",     Icon: OrderIcon      },
@@ -112,48 +134,64 @@ export default function Sidebar({
   current,
   onNavigate,
   open,
+  collapsed,
+  onToggleCollapse,
   theme,
   onToggleTheme,
   userName,
   userRole,
   onLogout,
 }: SidebarProps) {
+  // `collapsed` is a desktop-only icon rail; the mobile drawer always shows
+  // full labels, so every collapse style is scoped to the `lg:` breakpoint.
+  const hideOnRail = collapsed ? "lg:hidden" : ""
   return (
     <aside
       className={
-        "fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col gap-2 overflow-y-auto border-r border-[var(--border)] bg-[var(--bg)] p-4 transition-transform duration-200 lg:static lg:z-auto lg:h-dvh lg:translate-x-0 " +
+        "fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col gap-2 overflow-y-auto border-r border-[var(--border)] bg-[var(--bg)] p-4 transition-all duration-200 lg:static lg:z-auto lg:h-dvh lg:translate-x-0 " +
+        (collapsed ? "lg:w-[72px] lg:items-center lg:p-2 " : "") +
         (open ? "translate-x-0" : "-translate-x-full")
       }
     >
-      <div className="px-2 pb-4 pt-1">
-        <span className="text-[22px] font-semibold tracking-tight text-[var(--text-h)]">
+      <div className={"flex items-center px-2 pb-4 pt-1 " + (collapsed ? "lg:justify-center lg:px-0" : "justify-between")}>
+        <span className={"text-[22px] font-semibold tracking-tight text-[var(--text-h)] " + hideOnRail}>
           POS System
         </span>
+        <button
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)] lg:flex"
+        >
+          <MenuIcon />
+        </button>
       </div>
 
-      <nav className="flex flex-col gap-1">
+      <nav className="flex w-full flex-col gap-1">
         {NAV_ITEMS.filter(({ adminOnly }) => !adminOnly || userRole === "admin").map(({ id, label, Icon }) => {
           const active = current === id
           return (
             <button
               key={id}
               onClick={() => onNavigate(id)}
+              title={collapsed ? label : undefined}
               className={
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-base transition-colors " +
+                "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-base transition-colors " +
+                (collapsed ? "lg:justify-center lg:gap-0 lg:px-0 " : "") +
                 (active
                   ? "bg-[var(--accent-bg)] font-medium text-[var(--accent)]"
                   : "text-[var(--text)] hover:bg-[var(--social-bg)] hover:text-[var(--text-h)]")
               }
             >
               <Icon />
-              {label}
+              <span className={hideOnRail}>{label}</span>
             </button>
           )
         })}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-2 border-t border-[var(--border)] pt-3">
-        <div className="flex items-center gap-2 px-2">
+      <div className="mt-auto flex w-full flex-col gap-2 border-t border-[var(--border)] pt-3">
+        <div className={"flex items-center gap-2 px-2 " + hideOnRail}>
           <div className="min-w-0 flex-1">
             <p className="text-sm text-[var(--text)]">
               Signed in as{" "}
@@ -168,18 +206,23 @@ export default function Sidebar({
             {userRole}
           </span>
         </div>
-        <div className="flex gap-2">
+        <div className={"flex gap-2 " + (collapsed ? "lg:flex-col" : "")}>
           <button
             onClick={onLogout}
-            className="cursor-pointer flex-1 rounded-lg border border-[var(--border)] px-3 py-2.5 text-base text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)]"
+            title={collapsed ? "Log out" : undefined}
+            className={
+              "cursor-pointer flex flex-1 items-center justify-center rounded-lg border border-[var(--border)] px-3 py-2.5 text-base text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)] " +
+              (collapsed ? "lg:h-[46px] lg:w-[46px] lg:flex-none lg:p-0" : "")
+            }
           >
-            Log out
+            <span className={hideOnRail}>Log out</span>
+            {collapsed && <span className="hidden lg:flex"><LogoutIcon /></span>}
           </button>
           <button
             onClick={onToggleTheme}
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             aria-label="Toggle theme"
-            className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)]"
+            className="flex h-[46px] w-[46px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)]"
           >
             {theme === "dark" ? <SunIcon /> : <MoonIcon />}
           </button>

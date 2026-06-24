@@ -23,6 +23,7 @@ function App() {
   const { user, logout } = useAuth()
   const [page, setPage] = useState<Page>(() => user?.role === "admin" ? "dashboard" : "order")
   const [navOpen, setNavOpen] = useState(false)
+  const [navCollapsed, setNavCollapsed] = useState(() => localStorage.getItem("navCollapsed") === "1")
   const { theme, toggle } = useTheme()
   const [pendingBarcodeSku, setPendingBarcodeSku] = useState<string | null>(null)
   const [wakingUp, setWakingUp] = useState(false)
@@ -85,6 +86,14 @@ function App() {
     setNavOpen(false) // close the drawer after navigating on mobile
   }
 
+  function toggleCollapse() {
+    setNavCollapsed((c) => {
+      const next = !c
+      localStorage.setItem("navCollapsed", next ? "1" : "0")
+      return next
+    })
+  }
+
   return (
     <div className="flex h-dvh w-full overflow-hidden">
       {wakingUp && <WakingUpBanner />}
@@ -92,6 +101,8 @@ function App() {
         current={page}
         onNavigate={go}
         open={navOpen}
+        collapsed={navCollapsed}
+        onToggleCollapse={toggleCollapse}
         theme={theme}
         onToggleTheme={toggle}
         userName={user.name}
