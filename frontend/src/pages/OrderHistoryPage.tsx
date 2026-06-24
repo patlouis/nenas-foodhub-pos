@@ -349,11 +349,6 @@ export default function OrderHistoryPage() {
                               Voided
                             </span>
                           )}
-                          {staffMeal && (
-                            <span className="rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-purple-600">
-                              Staff meal
-                            </span>
-                          )}
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -431,11 +426,6 @@ export default function OrderHistoryPage() {
                           {voided && (
                             <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
                               Voided
-                            </span>
-                          )}
-                          {staffMeal && (
-                            <span className="rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-purple-600">
-                              Staff meal
                             </span>
                           )}
                         </span>
