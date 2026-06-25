@@ -52,10 +52,13 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
         ? { orderType: dir, paymentMethod: dir } // groups staff_meal, then cash/gcash
         : { [sortKey === "cashier" ? "cashierName" : sortKey === "total" ? "total" : "createdAt"]: dir };
 
+    // The payment-type revenue total is admin-only; never compute or return it
+    // for cashiers so it can't be read from the API response.
+    const isAdmin = req.user?.role === "admin";
     const [orders, total, amountAgg] = await Promise.all([
       Order.find(filter).sort(sort).skip((page - 1) * limit).limit(limit),
       Order.countDocuments(filter),
-      paymentType
+      isAdmin && paymentType
         ? Order.aggregate([{ $match: filter }, { $group: { _id: null, sum: { $sum: "$total" } } }])
         : Promise.resolve(null),
     ]);

@@ -294,7 +294,7 @@ export default function OrderHistoryPage() {
             </div>
           </Toolbar>
 
-          {paymentType === "staff_meal" && (
+          {user?.role === "admin" && paymentType === "staff_meal" && (
             <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 border-l-purple-500 bg-[var(--surface)] px-4 py-3 text-sm">
               <div className="flex items-center gap-2.5">
                 <StaffMealBadge />
@@ -306,7 +306,7 @@ export default function OrderHistoryPage() {
               </div>
             </div>
           )}
-          {totalAmount !== undefined && paymentType !== "staff_meal" && (
+          {user?.role === "admin" && totalAmount !== undefined && paymentType !== "staff_meal" && (
             <div className={`mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 bg-[var(--surface)] px-4 py-3 text-sm ${paymentType === "gcash" ? "border-l-blue-500" : "border-l-emerald-500"}`}>
               <div className="flex items-center gap-2.5">
                 <PaymentBadge method={paymentType as "cash" | "gcash"} />

@@ -42,6 +42,7 @@ export default function InventoryPage() {
 
   const [query, setQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
+  const [stockFilter, setStockFilter] = useState<"" | "out" | "low">("")
   const [sortKey, setSortKey] = useState<SortKey>("category")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(1)
@@ -106,6 +107,8 @@ export default function InventoryPage() {
     const q = query.trim().toLowerCase()
     const filtered = products.filter((p) => {
       if (categoryFilter && (p.category ?? "") !== categoryFilter) return false
+      if (stockFilter === "out" && p.stock !== 0) return false
+      if (stockFilter === "low" && !(p.stock > 0 && p.stock <= 5)) return false
       return !q || p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q) || (catMap.get(p.category ?? "")?.name ?? "").toLowerCase().includes(q)
     })
     return [...filtered].sort((a, b) => {
@@ -127,9 +130,9 @@ export default function InventoryPage() {
       }
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [products, catMap, query, categoryFilter, sortKey, sortDir])
+  }, [products, catMap, query, categoryFilter, stockFilter, sortKey, sortDir])
 
-  useEffect(() => { setPage(1) }, [query, categoryFilter, sortKey, sortDir, pageSize])
+  useEffect(() => { setPage(1) }, [query, categoryFilter, stockFilter, sortKey, sortDir, pageSize])
 
   const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
   const paged = visible.slice((page - 1) * pageSize, page * pageSize)
@@ -141,6 +144,14 @@ export default function InventoryPage() {
 
   const outCount = products.filter((p) => p.stock === 0).length
   const lowCount = products.filter((p) => p.stock > 0 && p.stock <= 5).length
+
+  // If the active stock filter's badge would disappear (count hit 0), clear it
+  // so the table doesn't stay stuck showing an empty filtered list.
+  useEffect(() => {
+    if ((stockFilter === "out" && outCount === 0) || (stockFilter === "low" && lowCount === 0)) {
+      setStockFilter("")
+    }
+  }, [stockFilter, outCount, lowCount])
 
   // Add / edit
   function openAdd() {
@@ -243,7 +254,7 @@ export default function InventoryPage() {
   const deltaNum = parseInt(delta, 10)
   const newStock = restockTarget && deltaNum > 0 ? restockTarget.stock + deltaNum : null
 
-  const isFiltering = query.trim() !== "" || categoryFilter !== ""
+  const isFiltering = query.trim() !== "" || categoryFilter !== "" || stockFilter !== ""
 
   return (
     <PageShell>
@@ -260,14 +271,30 @@ export default function InventoryPage() {
       {!loading && products.length > 0 && (
         <div className="mb-5 flex flex-wrap gap-2">
           {outCount > 0 && (
-            <span className="inline-flex items-center rounded-full bg-red-500/10 px-3 py-1 text-sm font-medium text-red-500">
+            <button
+              onClick={() => setStockFilter((f) => (f === "out" ? "" : "out"))}
+              aria-pressed={stockFilter === "out"}
+              title={stockFilter === "out" ? "Show all products" : "Show only out-of-stock products"}
+              className={
+                "inline-flex cursor-pointer items-center rounded-full bg-red-500/10 px-3 py-1 text-sm font-medium text-red-500 transition hover:bg-red-500/20 " +
+                (stockFilter === "out" ? "ring-2 ring-red-500/60" : "")
+              }
+            >
               {outCount} out of stock
-            </span>
+            </button>
           )}
           {lowCount > 0 && (
-            <span className="inline-flex items-center rounded-full bg-yellow-400/20 px-3 py-1 text-sm font-medium text-yellow-600">
+            <button
+              onClick={() => setStockFilter((f) => (f === "low" ? "" : "low"))}
+              aria-pressed={stockFilter === "low"}
+              title={stockFilter === "low" ? "Show all products" : "Show only low-stock products"}
+              className={
+                "inline-flex cursor-pointer items-center rounded-full bg-yellow-400/20 px-3 py-1 text-sm font-medium text-yellow-600 transition hover:bg-yellow-400/30 " +
+                (stockFilter === "low" ? "ring-2 ring-yellow-500/60" : "")
+              }
+            >
               {lowCount} low stock
-            </span>
+            </button>
           )}
           {outCount === 0 && lowCount === 0 && (
             <span className="inline-flex items-center rounded-full bg-green-500/10 px-3 py-1 text-sm font-medium text-green-600">
