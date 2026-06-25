@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Product, NewProduct, Category } from "../types"
+import { WASTAGE_REASONS } from "../types"
 import { productsApi, categoriesApi } from "../api"
 import { useAuth } from "../auth"
 import Modal from "../components/Modal"
@@ -66,6 +67,13 @@ export default function InventoryPage() {
   const [delta, setDelta] = useState("")
   const [restockError, setRestockError] = useState<string | null>(null)
   const [restocking, setRestocking] = useState(false)
+
+  // Wastage modal
+  const [wastageTarget, setWastageTarget] = useState<Product | null>(null)
+  const [wasteQty, setWasteQty] = useState("")
+  const [wasteReason, setWasteReason] = useState(WASTAGE_REASONS[0].value)
+  const [wastageError, setWastageError] = useState<string | null>(null)
+  const [wasting, setWasting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -254,6 +262,41 @@ export default function InventoryPage() {
   const deltaNum = parseInt(delta, 10)
   const newStock = restockTarget && deltaNum > 0 ? restockTarget.stock + deltaNum : null
 
+  // Wastage
+  function openWastage(p: Product) {
+    setWastageTarget(p)
+    setWasteQty("")
+    setWasteReason(WASTAGE_REASONS[0].value)
+    setWastageError(null)
+  }
+
+  async function handleWastage() {
+    if (!wastageTarget) return
+    const qty = parseInt(wasteQty, 10)
+    if (!qty || qty <= 0) {
+      setWastageError("Enter a positive whole number")
+      return
+    }
+    if (qty > wastageTarget.stock) {
+      setWastageError(`Only ${wastageTarget.stock} in stock`)
+      return
+    }
+    setWasting(true)
+    setWastageError(null)
+    try {
+      const updated = await productsApi.recordWastage(wastageTarget._id, qty, wasteReason)
+      setProducts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)))
+      setWastageTarget(null)
+    } catch (err) {
+      setWastageError(err instanceof Error ? err.message : "Failed to record wastage")
+    } finally {
+      setWasting(false)
+    }
+  }
+
+  const wasteQtyNum = parseInt(wasteQty, 10)
+  const wasteNewStock = wastageTarget && wasteQtyNum > 0 ? wastageTarget.stock - wasteQtyNum : null
+
   const isFiltering = query.trim() !== "" || categoryFilter !== "" || stockFilter !== ""
 
   return (
@@ -412,6 +455,16 @@ export default function InventoryPage() {
                         {isAdmin && (
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
+                              {p.stock > 0 && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openWastage(p) }}
+                                  title="Record wastage"
+                                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-red-500/10 hover:text-red-500"
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                  Wastage
+                                </button>
+                              )}
                               <button
                                 onClick={(e) => { e.stopPropagation(); openRestock(p) }}
                                 className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
@@ -673,6 +726,74 @@ export default function InventoryPage() {
                 className={btnPrimaryCls}
               >
                 {restocking ? "Saving…" : newStock !== null ? `Add ${deltaNum} units` : "Add stock"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Wastage modal */}
+      <Modal
+        open={!!wastageTarget}
+        onClose={() => setWastageTarget(null)}
+        title={`Record wastage — ${wastageTarget?.name ?? ""}`}
+      >
+        {wastageTarget && (
+          <form
+            onSubmit={(e) => { e.preventDefault(); void handleWastage() }}
+            className="flex flex-col gap-4"
+          >
+            <div className="flex items-center justify-between rounded-lg bg-[var(--surface)] px-4 py-3">
+              <span className="text-sm text-[var(--text)]">Current stock</span>
+              <span className="font-semibold tabular-nums text-[var(--text-h)]">{wastageTarget.stock}</span>
+            </div>
+
+            <label className={fieldLabelCls}>
+              Quantity to write off
+              <input
+                type="number"
+                min="1"
+                max={wastageTarget.stock}
+                value={wasteQty}
+                onChange={(e) => setWasteQty(e.target.value)}
+                placeholder="e.g. 2"
+                className={inputCls}
+                autoFocus
+              />
+            </label>
+
+            <label className={fieldLabelCls}>
+              Reason
+              <select
+                value={wasteReason}
+                onChange={(e) => setWasteReason(e.target.value)}
+                className={selectCls}
+              >
+                {WASTAGE_REASONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </label>
+
+            {wasteNewStock !== null && wasteNewStock >= 0 && (
+              <div className="flex items-center justify-between rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm">
+                <span className="text-[var(--text)]">New stock</span>
+                <span className="font-semibold tabular-nums text-red-500">
+                  {wastageTarget.stock} − {wasteQtyNum} = {wasteNewStock}
+                </span>
+              </div>
+            )}
+
+            {wastageError && <p className="text-sm text-red-500">{wastageError}</p>}
+
+            <div className="mt-1 flex justify-end gap-3">
+              <button type="button" onClick={() => setWastageTarget(null)} className={btnOutlineCls}>Cancel</button>
+              <button
+                type="submit"
+                disabled={wasting || !wasteQty || wasteQtyNum <= 0 || wasteQtyNum > wastageTarget.stock}
+                className={btnDangerCls}
+              >
+                {wasting ? "Saving…" : wasteQtyNum > 0 ? `Write off ${wasteQtyNum} units` : "Record wastage"}
               </button>
             </div>
           </form>

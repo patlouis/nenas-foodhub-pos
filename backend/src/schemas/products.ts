@@ -24,6 +24,15 @@ export const adjustStockSchema = z.object({
     .refine((d) => d !== 0, "delta must be a non-zero integer"),
 });
 
+// Fixed set of reasons stock can be written off. Keep in sync with the
+// frontend dropdown (frontend/src/types.ts WASTAGE_REASONS).
+export const WASTAGE_REASONS = ["spoiled", "expired", "damaged", "overcooked", "other"] as const;
+
+export const wastageSchema = z.object({
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  reason: z.enum(WASTAGE_REASONS),
+});
+
 export const listProductsQuerySchema = paginationQuerySchema(500).extend({
   q: z.string().trim().optional(),
   category: objectId.optional(),

@@ -42,6 +42,11 @@ function StaffMealBadge() {
   )
 }
 
+function TypeBadge({ order }: { order: Order }) {
+  if (order.orderType === "staff_meal") return <StaffMealBadge />
+  return <PaymentBadge method={order.paymentMethod} />
+}
+
 function PaymentBadge({ method }: { method?: "cash" | "gcash" }) {
   return method === "gcash" ? (
     <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-500">
@@ -355,7 +360,7 @@ export default function OrderHistoryPage() {
                         <span className={`font-semibold tabular-nums ${voided ? "line-through text-[var(--text-h)]" : staffMeal ? "text-purple-600" : "text-[var(--text-h)]"}`}>
                           ₱{o.total.toFixed(2)}
                         </span>
-                        {staffMeal ? <StaffMealBadge /> : <PaymentBadge method={o.paymentMethod} />}
+                        <TypeBadge order={o} />
                       </div>
                     </div>
 
@@ -437,7 +442,7 @@ export default function OrderHistoryPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {staffMeal ? <StaffMealBadge /> : <PaymentBadge method={o.paymentMethod} />}
+                        <TypeBadge order={o} />
                       </td>
                       <td className="px-4 py-3">
                         <ItemsList items={o.items} />
@@ -490,9 +495,7 @@ export default function OrderHistoryPage() {
             <div className="flex items-start justify-between gap-4 text-sm text-[var(--text)]">
               <div className="flex flex-col items-start gap-1">
                 <span>{formatDate(viewTarget.createdAt)}</span>
-                {viewTarget.orderType === "staff_meal"
-                  ? <StaffMealBadge />
-                  : <PaymentBadge method={viewTarget.paymentMethod} />}
+                <TypeBadge order={viewTarget} />
               </div>
               <span className="shrink-0">Cashier: <span className="text-[var(--text-h)]">{viewTarget.cashierName ?? "—"}</span></span>
             </div>

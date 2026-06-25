@@ -1,5 +1,5 @@
 import type {
-  Product, NewProduct, User, NewUser, Category, NewCategory, Order, NewOrderItem, Paginated,
+  Product, NewProduct, User, NewUser, Category, NewCategory, Order, NewOrderItem, Paginated, StockAdjustment,
 } from "./types"
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? ""
@@ -8,6 +8,7 @@ const PRODUCTS = `${BASE}/api/products`
 const CATEGORIES = `${BASE}/api/categories`
 const USERS = `${BASE}/api/users`
 const ORDERS = `${BASE}/api/orders`
+const STOCK_ADJUSTMENTS = `${BASE}/api/stock-adjustments`
 
 // Fired whenever the backend rejects our token; AuthProvider listens and
 // drops the app back to the login screen.
@@ -149,6 +150,13 @@ export const productsApi = {
       body: JSON.stringify({ delta }),
     }).then(handle<Product>),
 
+  recordWastage: (id: string, quantity: number, reason: string) =>
+    watchedFetch(`${PRODUCTS}/${id}/wastage`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ quantity, reason }),
+    }).then(handle<Product>),
+
   remove: (id: string) =>
     watchedFetch(`${PRODUCTS}/${id}`, {
       method: "DELETE",
@@ -190,6 +198,28 @@ export interface OrderListParams {
   sortKey?: string
   sortDir?: string
   [key: string]: string | number | undefined
+}
+
+export interface StockAdjustmentListParams {
+  page?: number
+  limit?: number
+  type?: "wastage" | "receiving"
+  from?: string
+  to?: string
+  [key: string]: string | number | undefined
+}
+
+export const stockAdjustmentsApi = {
+  list: (params?: StockAdjustmentListParams) =>
+    watchedFetch(`${STOCK_ADJUSTMENTS}${buildQuery(params)}`, { headers: authHeaders() }).then(
+      handle<Paginated<StockAdjustment> & { totalCost: number }>
+    ),
+
+  void: (id: string) =>
+    watchedFetch(`${STOCK_ADJUSTMENTS}/${id}/void`, {
+      method: "PATCH",
+      headers: authHeaders(),
+    }).then(handle<StockAdjustment>),
 }
 
 export const ordersApi = {

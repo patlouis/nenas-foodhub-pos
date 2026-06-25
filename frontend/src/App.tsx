@@ -3,6 +3,7 @@ import Sidebar, { type Page } from "./components/Sidebar"
 import OrderPage from "./pages/OrderPage"
 import OrderHistoryPage from "./pages/OrderHistoryPage"
 import InventoryPage from "./pages/InventoryPage"
+import InventoryLogPage from "./pages/InventoryLogPage"
 import CategoriesPage from "./pages/CategoriesPage"
 import UsersPage from "./pages/UsersPage"
 import DashboardPage from "./pages/DashboardPage"
@@ -166,8 +167,9 @@ function App() {
           </div>
           {page === "history"    && <OrderHistoryPage />}
 {page === "categories" && <CategoriesPage />}
-          {page === "inventory"  && <InventoryPage />}
-          {page === "users"      && user.role === "admin" && <UsersPage />}
+          {page === "inventory"     && <InventoryPage />}
+          {page === "inventory-log" && user.role === "admin" && <InventoryLogPage />}
+          {page === "users"         && user.role === "admin" && <UsersPage />}
         </main>
       </div>
     </div>

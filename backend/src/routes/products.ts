@@ -1,9 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import mongoose from "mongoose";
 import Product from "../models/Product.js";
+import StockAdjustment from "../models/StockAdjustment.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { createProductSchema, updateProductSchema, adjustStockSchema, listProductsQuerySchema } from "../schemas/products.js";
+import { createProductSchema, updateProductSchema, adjustStockSchema, wastageSchema, listProductsQuerySchema } from "../schemas/products.js";
 import { paginate } from "../schemas/pagination.js";
 
 const router = Router();
@@ -77,6 +78,17 @@ router.post("/", requireAuth, requireAdmin, validateBody(createProductSchema), a
     const data = { ...req.body };
     if (!data.sku) data.sku = undefined;
     const product = await Product.create(data);
+    if (product.stock > 0) {
+      await StockAdjustment.create({
+        product: product._id,
+        productName: product.name,
+        costPrice: product.costPrice ?? 0,
+        quantity: product.stock,
+        type: "receiving",
+        adjustedBy: req.user!.sub,
+        adjustedByName: req.user!.name,
+      });
+    }
     res.status(201).json(product);
   } catch (err: any) {
     if (err.code === 11000) {
@@ -106,7 +118,7 @@ router.put("/:id", requireAuth, requireAdmin, validateBody(updateProductSchema),
   }
 });
 
-// PATCH /api/products/:id/stock — adjust stock (admin only)
+// PATCH /api/products/:id/stock — adjust stock (admin only). Logs to stock_adjustments.
 router.patch("/:id/stock", requireAuth, requireAdmin, validateBody(adjustStockSchema), async (req: Request, res: Response) => {
   try {
     const { delta } = req.body;
@@ -120,7 +132,63 @@ router.patch("/:id/stock", requireAuth, requireAdmin, validateBody(adjustStockSc
         error: delta < 0 ? "Not enough stock to remove that many units" : "Product not found",
       });
     }
+    // Log positive deltas as "receiving"; negative deltas (manual removals) are
+    // uncommon but still worth recording.
+    if (delta !== 0) {
+      await StockAdjustment.create({
+        product: product._id,
+        productName: product.name,
+        costPrice: product.costPrice ?? 0,
+        quantity: Math.abs(delta),
+        type: delta > 0 ? "receiving" : "wastage",
+        adjustedBy: req.user!.sub,
+        adjustedByName: req.user!.name,
+      });
+    }
     res.json(product);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/products/:id/wastage — write off stock as wastage (admin only).
+// Decrements stock atomically and records a StockAdjustment for the audit log.
+router.post("/:id/wastage", requireAuth, requireAdmin, validateBody(wastageSchema), async (req: Request, res: Response) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+    const { quantity, reason } = req.body as { quantity: number; reason: string };
+
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, stock: { $gte: quantity } },
+      { $inc: { stock: -quantity } },
+      { returnDocument: "after" }
+    );
+    if (!product) {
+      const exists = await Product.exists({ _id: req.params.id });
+      return res.status(exists ? 409 : 404).json({
+        error: exists ? "Not enough stock to write off that many units" : "Product not found",
+      });
+    }
+
+    try {
+      await StockAdjustment.create({
+        product: product._id,
+        productName: product.name,
+        costPrice: product.costPrice ?? 0,
+        quantity,
+        type: "wastage",
+        reason,
+        adjustedBy: req.user!.sub,
+        adjustedByName: req.user!.name,
+      });
+    } catch (err: any) {
+      await Product.updateOne({ _id: product._id }, { $inc: { stock: quantity } });
+      return res.status(400).json({ error: err.message });
+    }
+
+    res.status(201).json(product);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }

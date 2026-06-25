@@ -7,17 +7,16 @@ import { createUserSchema, updateUserSchema } from "../schemas/users.js";
 
 const router = Router();
 
-// All user management is admin-only.
-router.use(requireAuth, requireAdmin);
+router.use(requireAuth);
 
-// GET /api/users — list all (password hash is stripped by the model's toJSON)
+// GET /api/users — all authenticated users can fetch the list (needed for staff meal dropdown)
 router.get("/", async (_req: Request, res: Response) => {
   const users = await User.find().sort({ createdAt: -1 });
   res.json(users);
 });
 
-// POST /api/users — register a new user
-router.post("/", validateBody(createUserSchema), async (req: Request, res: Response) => {
+// POST /api/users — register a new user (admin only)
+router.post("/", requireAdmin, validateBody(createUserSchema), async (req: Request, res: Response) => {
   try {
     const { name, email, password, role } = req.body;
 
@@ -49,8 +48,8 @@ router.post("/", validateBody(createUserSchema), async (req: Request, res: Respo
   }
 });
 
-// PUT /api/users/:id — update name, email, role, and optionally password
-router.put("/:id", validateBody(updateUserSchema), async (req: Request, res: Response) => {
+// PUT /api/users/:id — update name, email, role, and optionally password (admin only)
+router.put("/:id", requireAdmin, validateBody(updateUserSchema), async (req: Request, res: Response) => {
   try {
     const { name, email, role, password } = req.body;
     const updates: { name?: string; email?: string; role?: string; passwordHash?: string } = {};
@@ -71,8 +70,8 @@ router.put("/:id", validateBody(updateUserSchema), async (req: Request, res: Res
   }
 });
 
-// DELETE /api/users/:id
-router.delete("/:id", async (req: Request, res: Response) => {
+// DELETE /api/users/:id (admin only)
+router.delete("/:id", requireAdmin, async (req: Request, res: Response) => {
   const user = await User.findByIdAndDelete(req.params.id);
   if (!user) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });

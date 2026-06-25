@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Order, Product, Category } from "../types"
-import { ordersApi, productsApi, categoriesApi } from "../api"
+import type { Order, Product, Category, StockAdjustment } from "../types"
+import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi } from "../api"
 import { ErrorBanner, PageShell } from "../components/ui"
 
 type DateMode = "all" | "day" | "week" | "month"
@@ -255,6 +255,7 @@ const inputCls =
 
 export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [wastageAdjs, setWastageAdjs] = useState<StockAdjustment[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -275,14 +276,16 @@ export default function DashboardPage() {
     ;(async () => {
       try {
         // Analytics need the full history/catalog, not one page of it.
-        const [o, p, c] = await Promise.all([
+        const [o, p, c, w] = await Promise.all([
           ordersApi.list({ limit: 1000 }),
           productsApi.list({ limit: 500 }),
           categoriesApi.list(),
+          stockAdjustmentsApi.list({ type: "wastage", limit: 1000 }),
         ])
         setOrders(o.data)
         setProducts(p.data)
         setCategories(c)
+        setWastageAdjs(w.data)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard")
       } finally {
@@ -321,6 +324,23 @@ export default function DashboardPage() {
   const curItemsSold = useMemo(
     () => curOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.quantity, 0), 0),
     [curOrders],
+  )
+
+  // Wastage — loss from written-off stock, from stock_adjustments collection.
+  const curWastageAdjs = useMemo(
+    () => wastageAdjs.filter((a) => {
+      const d = new Date(a.createdAt)
+      return !a.voided && d >= curFrom && d <= curTo
+    }),
+    [wastageAdjs, curFrom, curTo],
+  )
+  const curWastageCost = useMemo(
+    () => curWastageAdjs.reduce((s, a) => s + a.costPrice * a.quantity, 0),
+    [curWastageAdjs],
+  )
+  const curWastageItems = useMemo(
+    () => curWastageAdjs.reduce((s, a) => s + a.quantity, 0),
+    [curWastageAdjs],
   )
 
   // Profit — uses current costPrice from product catalog (not snapshotted on orders)
@@ -547,7 +567,7 @@ export default function DashboardPage() {
       {error && <ErrorBanner message={error} />}
 
       {/* KPI row */}
-      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
         <KpiCard
           label="Revenue"
           value={fmtMoney(curRevenue)}
@@ -570,6 +590,11 @@ export default function DashboardPage() {
           label="Items Sold"
           value={String(curItemsSold)}
           note={`across ${curOrders.length} order${curOrders.length === 1 ? "" : "s"}`}
+        />
+        <KpiCard
+          label="Wastage Cost"
+          value={fmtMoney(curWastageCost)}
+          note={`${curWastageItems} item${curWastageItems === 1 ? "" : "s"} written off`}
         />
       </div>
 
