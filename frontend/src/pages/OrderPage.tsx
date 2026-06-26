@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { Product, Category, User } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
-import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls } from "../components/ui"
+import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls } from "../components/ui"
+import Modal from "../components/Modal"
 
 type CartLine = { product: Product; quantity: number }
 
@@ -73,13 +74,13 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   const [query, setQuery] = useState("")
   const [cart, setCart] = useState<CartLine[]>([])
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
-  const [amountTendered, setAmountTendered] = useState("")
   const [isStaffMeal, setIsStaffMeal] = useState(false)
   const [staffMealRecipient, setStaffMealRecipient] = useState("")
   const [users, setUsers] = useState<User[]>([])
   const [usersLoaded, setUsersLoaded] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   // Bumped on every load() call so a slower, older request can't overwrite the
   // results of a newer one (e.g. navigating away and back quickly).
@@ -208,7 +209,6 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       )
       setCart([])
       setPaymentMethod("cash")
-      setAmountTendered("")
       setIsStaffMeal(false)
       setStaffMealRecipient("")
       const num = order.orderNumber != null ? `#${String(order.orderNumber).padStart(4, "0")}` : ""
@@ -304,7 +304,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           <div className="flex items-center justify-between gap-3">
             <h2 className="m-0 text-lg">Current order</h2>
             <button
-              onClick={() => { setIsStaffMeal((v) => !v); setAmountTendered(""); setStaffMealRecipient("") }}
+              onClick={() => { setIsStaffMeal((v) => !v); setStaffMealRecipient("") }}
               className={
                 "h-8 rounded-lg border px-3 text-xs font-medium transition " +
                 (isStaffMeal
@@ -420,7 +420,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
             {(["cash", "gcash"] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => { setPaymentMethod(m); if (m === "gcash") setAmountTendered("") }}
+                onClick={() => setPaymentMethod(m)}
                 className={
                   "flex-1 cursor-pointer rounded-lg border py-2 text-sm font-medium capitalize transition " +
                   (paymentMethod === m
@@ -436,49 +436,78 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           </div>
           )}
 
-          {/* Amount tendered + change — cash only, not for staff meals */}
-          {!isStaffMeal && paymentMethod === "cash" && cart.length > 0 && (() => {
-            const tendered = parseFloat(amountTendered) || 0
-            const change = tendered - total
-            const short = amountTendered !== "" && tendered < total
-            return (
-              <div className="mb-3">
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text)]">₱</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={amountTendered}
-                    onChange={(e) => setAmountTendered(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2 pl-7 pr-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                    placeholder="Amount tendered"
-                  />
-                </div>
-                {change >= 0 && amountTendered !== "" && (
-                  <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-500/10 px-3 py-2">
-                    <span className="text-sm font-medium text-emerald-600">Change</span>
-                    <span className="font-semibold tabular-nums text-emerald-600">₱{change.toFixed(2)}</span>
-                  </div>
-                )}
-                {short && (
-                  <p className="mt-1.5 text-xs text-red-500">
-                    Short by ₱{(total - tendered).toFixed(2)}
-                  </p>
-                )}
-              </div>
-            )
-          })()}
-
           <button
-            onClick={submit}
-            disabled={cart.length === 0 || submitting || (!isStaffMeal && paymentMethod === "cash" && amountTendered !== "" && (parseFloat(amountTendered) || 0) < total)}
+            onClick={() => setConfirmOpen(true)}
+            disabled={cart.length === 0 || submitting}
             className={`${btnPrimaryCls} w-full ${isStaffMeal ? "bg-purple-600 hover:bg-purple-700 focus-visible:ring-purple-500" : ""}`}
           >
-            {submitting ? (isStaffMeal ? "Recording…" : "Placing order…") : (isStaffMeal ? "Record staff meal" : "Place order")}
+            {isStaffMeal ? "Record staff meal" : "Place order"}
           </button>
         </div>
       </aside>
+
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirm order">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            {isStaffMeal ? (
+              <span className="inline-flex items-center rounded-full bg-purple-500/10 px-2.5 py-0.5 text-xs font-semibold text-purple-600">
+                Staff meal
+              </span>
+            ) : paymentMethod === "gcash" ? (
+              <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-500">
+                GCash
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
+                Cash
+              </span>
+            )}
+            {isStaffMeal && staffMealRecipient && (
+              <span className="text-sm text-[var(--text)]">for <span className="font-medium text-[var(--text-h)]">{staffMealRecipient}</span></span>
+            )}
+          </div>
+
+          <ul className="flex flex-col gap-2 border-y border-[var(--border)] py-3">
+            {cart.map((l) => (
+              <li key={l.product._id} className="flex items-baseline gap-3">
+                <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">{l.product.name}</span>
+                <span className="shrink-0 text-sm tabular-nums text-[var(--text)]">
+                  {l.quantity} × ₱{l.product.price.toFixed(2)}
+                </span>
+                <span className="w-20 shrink-0 text-right tabular-nums text-[var(--text-h)]">
+                  ₱{getLineTotal(l.product, l.quantity).toFixed(2)}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-[var(--text)]">
+              Total · {itemCount} item{itemCount === 1 ? "" : "s"}
+            </span>
+            {isStaffMeal ? (
+              <span className="text-xl font-semibold tabular-nums text-purple-600">₱0.00</span>
+            ) : (
+              <span className="text-xl font-semibold tabular-nums text-[var(--text-h)]">
+                ₱{total.toFixed(2)}
+              </span>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button onClick={() => setConfirmOpen(false)} className={btnOutlineCls}>
+              Cancel
+            </button>
+            <button
+              onClick={() => { setConfirmOpen(false); void submit() }}
+              disabled={submitting}
+              className={`${btnPrimaryCls} ${isStaffMeal ? "bg-purple-600 hover:bg-purple-700 focus-visible:ring-purple-500" : ""}`}
+            >
+              {submitting ? (isStaffMeal ? "Recording…" : "Placing…") : (isStaffMeal ? "Confirm staff meal" : "Confirm order")}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

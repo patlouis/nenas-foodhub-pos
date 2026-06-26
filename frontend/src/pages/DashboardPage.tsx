@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Order, Product, Category, StockAdjustment } from "../types"
+import { wastageReasonLabel } from "../types"
 import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi } from "../api"
 import { ErrorBanner, PageShell } from "../components/ui"
 
@@ -662,9 +663,14 @@ export default function DashboardPage() {
         <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 max-h-[360px]">
           <div className="mb-4 shrink-0 flex items-center gap-2">
             <p className="text-sm font-semibold text-[var(--text-h)]">Stock Alerts</p>
-            {(outOfStock.length > 0 || lowStock.length > 0) && (
+            {outOfStock.length > 0 && (
+              <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-500">
+                {outOfStock.length} out of stock
+              </span>
+            )}
+            {lowStock.length > 0 && (
               <span className="rounded-full bg-yellow-400/20 px-2 py-0.5 text-xs font-medium text-yellow-600">
-                {outOfStock.length + lowStock.length} item{outOfStock.length + lowStock.length === 1 ? "" : "s"}
+                {lowStock.length} low
               </span>
             )}
           </div>
@@ -717,11 +723,11 @@ export default function DashboardPage() {
                 <div key={a._id} className="flex items-center justify-between rounded-lg bg-red-500/10 px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-[var(--text-h)]">{a.productName}</p>
-                    {a.reason && <p className="text-xs text-[var(--text)]">{a.reason}</p>}
+                    {a.reason && <p className="text-xs text-[var(--text)]">{wastageReasonLabel(a.reason)}</p>}
                   </div>
                   <div className="ml-2 shrink-0 text-right">
                     <p className="text-sm font-semibold tabular-nums text-red-500">−{a.quantity}</p>
-                    <p className="text-[11px] tabular-nums text-[var(--text)]">{fmtMoney(a.costPrice * a.quantity)}</p>
+                    <p className="text-[11px] tabular-nums text-[var(--text)]">{a.costPrice > 0 ? fmtMoney(a.costPrice * a.quantity) : "—"}</p>
                   </div>
                 </div>
               ))}
@@ -730,11 +736,13 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 max-h-[360px]">
-          <p className="mb-4 shrink-0 text-sm font-semibold text-[var(--text-h)]">Recent Orders</p>
+          <div className="mb-4 shrink-0 flex items-center">
+            <p className="text-sm font-semibold text-[var(--text-h)]">Recent Orders</p>
+          </div>
           {recentOrders.length === 0 ? (
             <p className="text-sm text-[var(--text)]">No orders for this period.</p>
           ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-2">
+            <div className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-2 pb-2">
               {recentOrders.map((o) => (
                 <div key={o._id} className="flex items-center gap-3 rounded-lg bg-[var(--social-bg)] px-3 py-2.5">
                   <div className="min-w-0 flex-1">
