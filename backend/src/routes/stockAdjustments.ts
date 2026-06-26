@@ -8,10 +8,16 @@ import { paginationQuerySchema, paginate } from "../schemas/pagination.js";
 
 const router = Router();
 
+const SORT_KEYS = ["createdAt", "productName", "type", "quantity", "costPrice"] as const
+type SortKey = typeof SORT_KEYS[number]
+
 const listQuerySchema = paginationQuerySchema(1000).extend({
   type: z.enum(["wastage", "receiving"]).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
+  q: z.string().optional(),
+  sortKey: z.enum(SORT_KEYS).optional().default("createdAt"),
+  sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
 });
 
 // GET /api/stock-adjustments — admin only, paginated newest-first.
@@ -21,10 +27,12 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid query" });
     }
-    const { page, limit, type, from, to } = parsed.data;
+    const { page, limit, type, from, to, q, sortKey, sortDir } = parsed.data;
+    const dir = sortDir === "asc" ? 1 : -1;
 
     const filter: Record<string, unknown> = { voided: false };
     if (type) filter.type = type;
+    if (q) filter.productName = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
     if (from || to) {
       const range: { $gte?: Date; $lte?: Date } = {};
       if (from) range.$gte = new Date(from);
@@ -33,7 +41,7 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
     }
 
     const [data, total, costAgg] = await Promise.all([
-      StockAdjustment.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      StockAdjustment.find(filter).sort({ [sortKey]: dir } as Record<SortKey, 1 | -1>).skip((page - 1) * limit).limit(limit),
       StockAdjustment.countDocuments(filter),
       StockAdjustment.aggregate([
         { $match: filter },

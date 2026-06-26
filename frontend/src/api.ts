@@ -206,6 +206,9 @@ export interface StockAdjustmentListParams {
   type?: "wastage" | "receiving"
   from?: string
   to?: string
+  q?: string
+  sortKey?: string
+  sortDir?: "asc" | "desc"
   [key: string]: string | number | undefined
 }
 

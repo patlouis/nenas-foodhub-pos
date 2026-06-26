@@ -373,119 +373,190 @@ export default function InventoryPage() {
             <EmptyState>No products match the current filters.</EmptyState>
           ) : (
             <>
-              <TableCard>
-                <thead>
-                  <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
-                    <SortTh label="Name"     col="name"     sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    <SortTh label="SKU"      col="sku"      sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    <SortTh label="Category" col="category" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    {isAdmin && <SortTh label="Cost" col="costPrice" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
-                    <SortTh label="Price"      col="price"    align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    <SortTh label="Stock"      col="stock"    align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    <th className="w-24 px-4 py-3 text-center text-xs font-medium uppercase tracking-wide text-[var(--text)]">Status</th>
-                    {isAdmin && <th className="px-4 py-3" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.map((p) => {
-                    const cat = catMap.get(p.category ?? "")
-                    return (
-                      <tr
-                        key={p._id}
-                        onClick={isAdmin ? () => openEdit(p) : undefined}
-                        className={
-                          "border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--social-bg)] " +
-                          (isAdmin ? "cursor-pointer" : "")
-                        }
-                      >
-                        <td className="px-4 py-3 font-medium text-[var(--text-h)]">{p.name}</td>
-                        <td className="px-4 py-3 text-[var(--text)]">{p.sku || "—"}</td>
-                        <td className="px-4 py-3">
-                          {cat ? (
-                            <span
-                              className="inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-h)]"
-                              style={{
-                                backgroundColor: `color-mix(in srgb, ${cat.color} 28%, var(--social-bg))`,
-                              }}
-                            >
-                              {cat.name}
-                            </span>
-                          ) : (
-                            <span className="text-[var(--text)]">—</span>
-                          )}
-                        </td>
-                        {isAdmin && (
-                          <td className="px-4 py-3 text-right tabular-nums text-[var(--text)]">
-                            {p.costPrice != null ? `₱${p.costPrice.toFixed(2)}` : "—"}
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-right tabular-nums text-[var(--text-h)]">₱{p.price.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <StockBadge stock={p.stock} />
-                        </td>
-                        <td className="px-4 py-3">
-                          {isAdmin ? (
-                            <div className="flex justify-center">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); void handleToggleStatus(p) }}
-                                title={p.status === "disabled" ? "Enable product" : "Disable product"}
-                                className={`flex h-6 w-11 items-center rounded-full border transition-colors ${
-                                  p.status !== "disabled"
-                                    ? "justify-end border-[var(--accent)] bg-[var(--accent-bg)]"
-                                    : "justify-start border-[var(--border)] bg-[var(--social-bg)]"
-                                }`}
+              {/* Mobile: card list */}
+              <div className="flex flex-col gap-3 sm:hidden">
+                {paged.map((p) => {
+                  const cat = catMap.get(p.category ?? "")
+                  return (
+                    <div
+                      key={p._id}
+                      onClick={isAdmin ? () => openEdit(p) : undefined}
+                      className={"rounded-xl border border-[var(--border)] p-4 transition-colors " + (isAdmin ? "cursor-pointer active:bg-[var(--social-bg)]" : "")}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-[var(--text-h)]">{p.name}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            {cat ? (
+                              <span
+                                className="inline-flex items-center rounded-full border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-h)]"
+                                style={{ backgroundColor: `color-mix(in srgb, ${cat.color} 28%, var(--social-bg))` }}
                               >
-                                <span className={`mx-0.5 h-4 w-4 rounded-full transition-colors ${
-                                  p.status !== "disabled" ? "bg-[var(--accent)]" : "bg-[var(--text)]"
-                                }`} />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex justify-center">
-                              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                p.status !== "disabled"
-                                  ? "bg-green-500/10 text-green-600"
-                                  : "bg-[var(--social-bg)] text-[var(--text)]"
-                              }`}>
-                                {p.status !== "disabled" ? "Available" : "Unavailable"}
+                                {cat.name}
                               </span>
-                            </div>
-                          )}
-                        </td>
-                        {isAdmin && (
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-1">
-                              {p.stock > 0 && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); openWastage(p) }}
-                                  title="Record wastage"
-                                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-red-500/10 hover:text-red-500"
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                  Wastage
-                                </button>
-                              )}
+                            ) : null}
+                            {p.sku && <span className="text-xs text-[var(--text)]">{p.sku}</span>}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="font-semibold tabular-nums text-[var(--text-h)]">₱{p.price.toFixed(2)}</span>
+                          <StockBadge stock={p.stock} />
+                        </div>
+                      </div>
+                      {isAdmin && (
+                        <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2">
+                          <div className="flex items-center gap-1">
+                            {p.stock > 0 && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); openRestock(p) }}
-                                className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
+                                onClick={(e) => { e.stopPropagation(); openWastage(p) }}
+                                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-red-500/10 hover:text-red-500"
                               >
-                                <PlusIcon size={12} />
-                                Add stock
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                Wastage
                               </button>
-                              <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} title="Edit product" aria-label="Edit product" className={iconBtnCls}>
-                                <PencilIcon />
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }} title="Delete product" aria-label="Delete product" className={iconBtnDangerCls}>
-                                <TrashIcon />
-                              </button>
-                            </div>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openRestock(p) }}
+                              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
+                            >
+                              <PlusIcon size={12} />
+                              Add stock
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); void handleToggleStatus(p) }}
+                              title={p.status === "disabled" ? "Enable product" : "Disable product"}
+                              className={`flex h-6 w-11 items-center rounded-full border transition-colors ${
+                                p.status !== "disabled"
+                                  ? "justify-end border-[var(--accent)] bg-[var(--accent-bg)]"
+                                  : "justify-start border-[var(--border)] bg-[var(--social-bg)]"
+                              }`}
+                            >
+                              <span className={`mx-0.5 h-4 w-4 rounded-full transition-colors ${p.status !== "disabled" ? "bg-[var(--accent)]" : "bg-[var(--text)]"}`} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} title="Edit product" aria-label="Edit product" className={iconBtnCls}>
+                              <PencilIcon />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }} title="Delete product" aria-label="Delete product" className={iconBtnDangerCls}>
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden sm:block">
+                <TableCard>
+                  <thead>
+                    <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
+                      <SortTh label="Name"     col="name"     sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      <SortTh label="SKU"      col="sku"      sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      <SortTh label="Category" col="category" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      {isAdmin && <SortTh label="Cost" col="costPrice" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
+                      <SortTh label="Price" col="price" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      <SortTh label="Stock" col="stock" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      <th className="w-24 px-4 py-3 text-center text-xs font-medium uppercase tracking-wide text-[var(--text)]">Status</th>
+                      {isAdmin && <th className="px-4 py-3" />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paged.map((p) => {
+                      const cat = catMap.get(p.category ?? "")
+                      return (
+                        <tr
+                          key={p._id}
+                          onClick={isAdmin ? () => openEdit(p) : undefined}
+                          className={
+                            "border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--social-bg)] " +
+                            (isAdmin ? "cursor-pointer" : "")
+                          }
+                        >
+                          <td className="px-4 py-3 font-medium text-[var(--text-h)]">{p.name}</td>
+                          <td className="px-4 py-3 text-[var(--text)]">{p.sku || "—"}</td>
+                          <td className="px-4 py-3">
+                            {cat ? (
+                              <span
+                                className="inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-h)]"
+                                style={{ backgroundColor: `color-mix(in srgb, ${cat.color} 28%, var(--social-bg))` }}
+                              >
+                                {cat.name}
+                              </span>
+                            ) : (
+                              <span className="text-[var(--text)]">—</span>
+                            )}
                           </td>
-                        )}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </TableCard>
+                          {isAdmin && (
+                            <td className="px-4 py-3 text-right tabular-nums text-[var(--text)]">
+                              {p.costPrice != null ? `₱${p.costPrice.toFixed(2)}` : "—"}
+                            </td>
+                          )}
+                          <td className="px-4 py-3 text-right tabular-nums text-[var(--text-h)]">₱{p.price.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right"><StockBadge stock={p.stock} /></td>
+                          <td className="px-4 py-3">
+                            {isAdmin ? (
+                              <div className="flex justify-center">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); void handleToggleStatus(p) }}
+                                  title={p.status === "disabled" ? "Enable product" : "Disable product"}
+                                  className={`flex h-6 w-11 items-center rounded-full border transition-colors ${
+                                    p.status !== "disabled"
+                                      ? "justify-end border-[var(--accent)] bg-[var(--accent-bg)]"
+                                      : "justify-start border-[var(--border)] bg-[var(--social-bg)]"
+                                  }`}
+                                >
+                                  <span className={`mx-0.5 h-4 w-4 rounded-full transition-colors ${p.status !== "disabled" ? "bg-[var(--accent)]" : "bg-[var(--text)]"}`} />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex justify-center">
+                                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                  p.status !== "disabled" ? "bg-green-500/10 text-green-600" : "bg-[var(--social-bg)] text-[var(--text)]"
+                                }`}>
+                                  {p.status !== "disabled" ? "Available" : "Unavailable"}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          {isAdmin && (
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-1">
+                                {p.stock > 0 && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openWastage(p) }}
+                                    title="Record wastage"
+                                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-red-500/10 hover:text-red-500"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                    Wastage
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openRestock(p) }}
+                                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
+                                >
+                                  <PlusIcon size={12} />
+                                  Add stock
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} title="Edit product" aria-label="Edit product" className={iconBtnCls}>
+                                  <PencilIcon />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }} title="Delete product" aria-label="Delete product" className={iconBtnDangerCls}>
+                                  <TrashIcon />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </TableCard>
+              </div>
               <Paginator page={page} totalPages={totalPages} total={visible.length} pageSize={pageSize} onPage={setPage} onPageSize={(n) => setPageSize(n)} />
             </>
           )}

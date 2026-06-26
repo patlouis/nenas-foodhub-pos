@@ -567,7 +567,7 @@ export default function DashboardPage() {
       {error && <ErrorBanner message={error} />}
 
       {/* KPI row */}
-      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
+      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4">
         <KpiCard
           label="Revenue"
           value={fmtMoney(curRevenue)}
@@ -590,11 +590,6 @@ export default function DashboardPage() {
           label="Items Sold"
           value={String(curItemsSold)}
           note={`across ${curOrders.length} order${curOrders.length === 1 ? "" : "s"}`}
-        />
-        <KpiCard
-          label="Wastage Cost"
-          value={fmtMoney(curWastageCost)}
-          note={`${curWastageItems} item${curWastageItems === 1 ? "" : "s"} written off`}
         />
       </div>
 
@@ -666,8 +661,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Inventory alerts + recent orders */}
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+      {/* Stock alerts + Wastage + Recent orders */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 max-h-[360px]">
           <div className="mb-4 shrink-0 flex items-center gap-2">
             <p className="text-sm font-semibold text-[var(--text-h)]">Stock Alerts</p>
@@ -705,6 +700,35 @@ export default function DashboardPage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 max-h-[360px]">
+          <div className="mb-4 shrink-0 flex items-center gap-2">
+            <p className="text-sm font-semibold text-[var(--text-h)]">Wastage</p>
+            {curWastageAdjs.length > 0 && (
+              <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-500">
+                {fmtMoney(curWastageCost)}
+              </span>
+            )}
+          </div>
+          {curWastageAdjs.length === 0 ? (
+            <p className="text-sm text-green-600">No wastage recorded for this period.</p>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-2">
+              {curWastageAdjs.map((a) => (
+                <div key={a._id} className="flex items-center justify-between rounded-lg bg-red-500/10 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[var(--text-h)]">{a.productName}</p>
+                    {a.reason && <p className="text-xs text-[var(--text)]">{a.reason}</p>}
+                  </div>
+                  <div className="ml-2 shrink-0 text-right">
+                    <p className="text-sm font-semibold tabular-nums text-red-500">−{a.quantity}</p>
+                    <p className="text-[11px] tabular-nums text-[var(--text)]">{fmtMoney(a.costPrice * a.quantity)}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

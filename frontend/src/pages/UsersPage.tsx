@@ -195,44 +195,74 @@ export default function UsersPage() {
             <EmptyState>No users match the current filters.</EmptyState>
           ) : (
             <>
-            <TableCard>
-              <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
-                  <SortTh label="Name"  col="name"  sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortTh label="Email" col="email" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <SortTh label="Role"  col="role"  sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <th className="w-24 px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
+              {/* Mobile: card list */}
+              <div className="flex flex-col gap-3 sm:hidden">
                 {paged.map((u) => (
-                  <tr
+                  <div
                     key={u._id}
                     onClick={() => openEdit(u)}
-                    className="cursor-pointer border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--social-bg)]"
+                    className="cursor-pointer rounded-xl border border-[var(--border)] p-4 transition-colors active:bg-[var(--social-bg)]"
                   >
-                    <td className="px-4 py-3 font-medium text-[var(--text-h)]">{u.name}</td>
-                    <td className="px-4 py-3 text-[var(--text)]">{u.email}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-[var(--accent-bg)] px-2.5 py-0.5 text-sm capitalize text-[var(--accent)]">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-[var(--text-h)]">{u.name}</p>
+                      <span className="shrink-0 rounded-full bg-[var(--accent-bg)] px-2.5 py-0.5 text-xs capitalize text-[var(--accent)]">
                         {u.role}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); openEdit(u) }} title="Edit user" aria-label="Edit user" className={iconBtnCls}>
-                          <PencilIcon />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(u) }} title="Delete user" aria-label="Delete user" className={iconBtnDangerCls}>
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    </div>
+                    <p className="mt-1 text-sm text-[var(--text)]">{u.email}</p>
+                    <div className="mt-3 flex justify-end gap-1 border-t border-[var(--border)] pt-2">
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(u) }} title="Edit user" aria-label="Edit user" className={iconBtnCls}>
+                        <PencilIcon />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(u) }} title="Delete user" aria-label="Delete user" className={iconBtnDangerCls}>
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </TableCard>
-            <Paginator page={page} totalPages={totalPages} total={visible.length} pageSize={pageSize} onPage={setPage} onPageSize={(n) => setPageSize(n)} />
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden sm:block">
+                <TableCard>
+                  <thead>
+                    <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
+                      <SortTh label="Name"  col="name"  sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      <SortTh label="Email" col="email" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      <SortTh label="Role"  col="role"  sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                      <th className="w-24 px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paged.map((u) => (
+                      <tr
+                        key={u._id}
+                        onClick={() => openEdit(u)}
+                        className="cursor-pointer border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--social-bg)]"
+                      >
+                        <td className="px-4 py-3 font-medium text-[var(--text-h)]">{u.name}</td>
+                        <td className="px-4 py-3 text-[var(--text)]">{u.email}</td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-[var(--accent-bg)] px-2.5 py-0.5 text-sm capitalize text-[var(--accent)]">
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={(e) => { e.stopPropagation(); openEdit(u) }} title="Edit user" aria-label="Edit user" className={iconBtnCls}>
+                              <PencilIcon />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(u) }} title="Delete user" aria-label="Delete user" className={iconBtnDangerCls}>
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </TableCard>
+              </div>
+              <Paginator page={page} totalPages={totalPages} total={visible.length} pageSize={pageSize} onPage={setPage} onPageSize={(n) => setPageSize(n)} />
             </>
           )}
         </>

@@ -6,8 +6,9 @@ export async function connectDB(uri: string | undefined) {
     return;
   }
   await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 5000, // fail fast if Atlas is unreachable
-    socketTimeoutMS: 10000,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    // Mongoose 9 / MongoDB driver v6 enables TCP keep-alive automatically
   });
   console.log("[db] Connected to MongoDB Atlas");
 }

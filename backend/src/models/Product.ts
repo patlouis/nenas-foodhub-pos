@@ -29,4 +29,6 @@ const productSchema = new mongoose.Schema<IProduct>(
   { timestamps: true }
 );
 
+productSchema.index({ status: 1, category: 1 });
+
 export default mongoose.model<IProduct>("Product", productSchema);
