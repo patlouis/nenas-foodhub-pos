@@ -338,10 +338,6 @@ export default function DashboardPage() {
     () => curWastageAdjs.reduce((s, a) => s + a.costPrice * a.quantity, 0),
     [curWastageAdjs],
   )
-  const curWastageItems = useMemo(
-    () => curWastageAdjs.reduce((s, a) => s + a.quantity, 0),
-    [curWastageAdjs],
-  )
 
   // Profit — uses current costPrice from product catalog (not snapshotted on orders)
   const costByName = useMemo(
