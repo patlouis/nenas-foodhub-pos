@@ -396,7 +396,7 @@ export default function InventoryPage() {
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             {cat ? (
                               <span
-                                className="inline-flex items-center rounded-full border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-h)]"
+                                className="inline-flex items-center whitespace-nowrap rounded-full border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-h)]"
                                 style={{ backgroundColor: `color-mix(in srgb, ${cat.color} 28%, var(--social-bg))` }}
                               >
                                 {cat.name}
@@ -488,7 +488,7 @@ export default function InventoryPage() {
                           <td className="px-4 py-3">
                             {cat ? (
                               <span
-                                className="inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-h)]"
+                                className="inline-flex items-center whitespace-nowrap rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-h)]"
                                 style={{ backgroundColor: `color-mix(in srgb, ${cat.color} 28%, var(--social-bg))` }}
                               >
                                 {cat.name}
