@@ -136,6 +136,13 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     }
   }, [activeTable])
 
+  // Auto-dismiss the "order placed" toast.
+  useEffect(() => {
+    if (!success) return
+    const id = setTimeout(() => setSuccess(null), 3000)
+    return () => clearTimeout(id)
+  }, [success])
+
   useEffect(() => {
     if (!pendingBarcodeSku || products.length === 0) return
     const match = products.find(
@@ -346,12 +353,6 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
         </div>
 
         <div className="max-h-56 overflow-y-auto px-5 py-4 sm:max-h-none sm:min-h-40 sm:flex-1">
-          {success && (
-            <p className="mb-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-600">
-              {success}
-            </p>
-          )}
-
           {cart.length === 0 ? (
             <p className="py-10 text-center text-sm text-[var(--text)]">
               No items yet — tap a product to add it.
@@ -541,6 +542,20 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           </div>
         </div>
       </Modal>
+
+      {/* Success toast — floats over the screen, auto-dismisses */}
+      {success && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+          <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] py-2.5 pl-2.5 pr-4 text-sm font-medium text-[var(--text-h)] shadow-[var(--shadow)] animate-[toast-in_200ms_ease-out]">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </span>
+            {success}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
