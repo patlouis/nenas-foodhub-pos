@@ -3,7 +3,7 @@ import mongoose, { type Document, type Model } from "mongoose";
 export interface IStockAdjustment extends Document {
   product: mongoose.Types.ObjectId;
   productName: string;
-  costPrice: number;
+  costPrice: number | null;
   quantity: number;
   type: "wastage" | "receiving";
   reason?: string;
@@ -21,7 +21,7 @@ const stockAdjustmentSchema = new mongoose.Schema<IStockAdjustment>(
   {
     product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
     productName: { type: String, required: true },
-    costPrice: { type: Number, required: true, default: 0 },
+    costPrice: { type: Number, default: null },
     quantity: { type: Number, required: true, min: 1 },
     type: { type: String, enum: ["wastage", "receiving"], required: true },
     reason: { type: String },

@@ -22,7 +22,38 @@ function WakingUpBanner() {
 
 function App() {
   const { user, logout } = useAuth()
-  const [page, setPage] = useState<Page>(() => user?.role === "admin" ? "dashboard" : "order")
+
+  const ADMIN_ONLY: Page[] = ["dashboard", "inventory-log", "users"]
+
+  function defaultPage(role: string | undefined): Page {
+    return role === "admin" ? "dashboard" : "order"
+  }
+
+  const [page, setPage] = useState<Page>(() => {
+    if (!user) return "order"
+    const stored = localStorage.getItem("currentPage") as Page | null
+    if (stored && !(ADMIN_ONLY.includes(stored) && user.role !== "admin")) return stored
+    return defaultPage(user.role)
+  })
+
+  // Persist active page across refreshes
+  useEffect(() => {
+    localStorage.setItem("currentPage", page)
+  }, [page])
+
+  // Reset to role default when a different user logs in after a logout
+  const justLoggedOutRef = useRef(false)
+  useEffect(() => {
+    if (!user) {
+      justLoggedOutRef.current = true
+      return
+    }
+    if (justLoggedOutRef.current) {
+      justLoggedOutRef.current = false
+      setPage(defaultPage(user.role))
+    }
+  }, [user])
+
   const [navOpen, setNavOpen] = useState(false)
   const [navCollapsed, setNavCollapsed] = useState(() => localStorage.getItem("navCollapsed") === "1")
   const { theme, toggle } = useTheme()

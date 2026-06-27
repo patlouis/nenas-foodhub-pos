@@ -14,6 +14,11 @@ type SortDir = "asc" | "desc"
 
 const EMPTY: NewUser = { name: "", email: "", password: "", role: "cashier" }
 
+const roleBadgeCls: Record<Role, string> = {
+  admin:   "bg-purple-500/15 text-purple-400",
+  cashier: "bg-blue-500/15 text-blue-400",
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -205,7 +210,7 @@ export default function UsersPage() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-medium text-[var(--text-h)]">{u.name}</p>
-                      <span className="shrink-0 rounded-full bg-[var(--accent-bg)] px-2.5 py-0.5 text-xs capitalize text-[var(--accent)]">
+                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs capitalize font-medium ${roleBadgeCls[u.role]}`}>
                         {u.role}
                       </span>
                     </div>
@@ -243,7 +248,7 @@ export default function UsersPage() {
                         <td className="px-4 py-3 font-medium text-[var(--text-h)]">{u.name}</td>
                         <td className="px-4 py-3 text-[var(--text)]">{u.email}</td>
                         <td className="px-4 py-3">
-                          <span className="rounded-full bg-[var(--accent-bg)] px-2.5 py-0.5 text-sm capitalize text-[var(--accent)]">
+                          <span className={`rounded-full px-2.5 py-0.5 text-sm capitalize font-medium ${roleBadgeCls[u.role]}`}>
                             {u.role}
                           </span>
                         </td>

@@ -82,7 +82,7 @@ router.post("/", requireAuth, requireAdmin, validateBody(createProductSchema), a
       await StockAdjustment.create({
         product: product._id,
         productName: product.name,
-        costPrice: product.costPrice ?? 0,
+        costPrice: product.costPrice ?? null,
         quantity: product.stock,
         type: "receiving",
         adjustedBy: req.user!.sub,
@@ -138,7 +138,7 @@ router.patch("/:id/stock", requireAuth, requireAdmin, validateBody(adjustStockSc
       await StockAdjustment.create({
         product: product._id,
         productName: product.name,
-        costPrice: product.costPrice ?? 0,
+        costPrice: product.costPrice ?? null,
         quantity: Math.abs(delta),
         type: delta > 0 ? "receiving" : "wastage",
         adjustedBy: req.user!.sub,
@@ -176,7 +176,7 @@ router.post("/:id/wastage", requireAuth, requireAdmin, validateBody(wastageSchem
       await StockAdjustment.create({
         product: product._id,
         productName: product.name,
-        costPrice: product.costPrice ?? 0,
+        costPrice: product.costPrice ?? null,
         quantity,
         type: "wastage",
         reason,
