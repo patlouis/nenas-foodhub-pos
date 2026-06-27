@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Product, NewProduct, Category } from "../types"
 import { WASTAGE_REASONS } from "../types"
-import { productsApi, categoriesApi } from "../api"
+import { productsApi, categoriesApi, ApiError } from "../api"
 import { useAuth } from "../auth"
 import Modal from "../components/Modal"
 import {
@@ -60,6 +60,7 @@ export default function InventoryPage() {
 
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
+  const [deleteHasHistory, setDeleteHasHistory] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   // Restock modal
@@ -217,16 +218,22 @@ export default function InventoryPage() {
     }
   }
 
-  async function handleDelete() {
+  async function handleDelete(force = false) {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await productsApi.remove(deleteTarget._id)
+      await productsApi.remove(deleteTarget._id, force)
       setProducts((prev) => prev.filter((p) => p._id !== deleteTarget._id))
       setDeleteTarget(null)
+      setDeleteHasHistory(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete product")
-      setDeleteTarget(null)
+      if (err instanceof ApiError && err.code === "HAS_STOCK_HISTORY") {
+        setDeleteHasHistory(true)
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to delete product")
+        setDeleteTarget(null)
+        setDeleteHasHistory(false)
+      }
     } finally {
       setDeleting(false)
     }
@@ -735,18 +742,42 @@ export default function InventoryPage() {
       </Modal>
 
       {/* Delete confirmation modal */}
-      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Remove product?">
-        <p className="text-[var(--text)]">
-          This will permanently delete{" "}
-          <span className="font-medium text-[var(--text-h)]">{deleteTarget?.name}</span>
-          . This cannot be undone.
-        </p>
-        <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setDeleteTarget(null)} className={btnOutlineCls}>Cancel</button>
-          <button onClick={handleDelete} disabled={deleting} className={btnDangerCls}>
-            {deleting ? "Deleting…" : "Delete"}
-          </button>
-        </div>
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => { setDeleteTarget(null); setDeleteHasHistory(false) }}
+        title="Remove product?"
+      >
+        {deleteHasHistory ? (
+          <>
+            <p className="text-[var(--text)]">
+              <span className="font-medium text-[var(--text-h)]">{deleteTarget?.name}</span>{" "}
+              has inventory log history. Deleting it will orphan those records.
+            </p>
+            <p className="mt-2 text-sm text-[var(--text)]">
+              Consider <strong>disabling</strong> it instead to keep it out of the menu while preserving history.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => { setDeleteTarget(null); setDeleteHasHistory(false) }} className={btnOutlineCls}>Cancel</button>
+              <button onClick={() => void handleDelete(true)} disabled={deleting} className={btnDangerCls}>
+                {deleting ? "Deleting…" : "Delete anyway"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-[var(--text)]">
+              This will permanently delete{" "}
+              <span className="font-medium text-[var(--text-h)]">{deleteTarget?.name}</span>
+              . This cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setDeleteTarget(null)} className={btnOutlineCls}>Cancel</button>
+              <button onClick={() => void handleDelete(false)} disabled={deleting} className={btnDangerCls}>
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </>
+        )}
       </Modal>
 
       {/* Restock modal */}

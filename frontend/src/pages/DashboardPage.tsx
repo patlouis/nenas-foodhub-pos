@@ -263,6 +263,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [dateMode, setDateMode] = useState<DateMode>("day")
   const [datePick, setDatePick] = useState(() => toDateStr(new Date()))
+  const [stockAlertFilter, setStockAlertFilter] = useState<"all" | "out" | "low">("all")
 
   function switchMode(mode: DateMode) {
     setDateMode(mode)
@@ -664,21 +665,27 @@ export default function DashboardPage() {
           <div className="mb-4 shrink-0 flex items-center gap-2">
             <p className="text-sm font-semibold text-[var(--text-h)]">Stock Alerts</p>
             {outOfStock.length > 0 && (
-              <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-500">
+              <button
+                onClick={() => setStockAlertFilter(f => f === "out" ? "all" : "out")}
+                className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${stockAlertFilter === "out" ? "bg-red-500 text-white" : "bg-red-500/15 text-red-500 hover:bg-red-500/25"}`}
+              >
                 {outOfStock.length} out of stock
-              </span>
+              </button>
             )}
             {lowStock.length > 0 && (
-              <span className="rounded-full bg-yellow-400/20 px-2 py-0.5 text-xs font-medium text-yellow-600">
+              <button
+                onClick={() => setStockAlertFilter(f => f === "low" ? "all" : "low")}
+                className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${stockAlertFilter === "low" ? "bg-yellow-500 text-white" : "bg-yellow-400/20 text-yellow-600 hover:bg-yellow-400/30"}`}
+              >
                 {lowStock.length} low
-              </span>
+              </button>
             )}
           </div>
           {outOfStock.length === 0 && lowStock.length === 0 ? (
             <p className="text-sm text-green-600">All products are well-stocked.</p>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto flex flex-col gap-2">
-              {outOfStock.map((p) => {
+              {(stockAlertFilter !== "low" ? outOfStock : []).map((p) => {
                 const catName = p.category ? categories.find((c) => c._id === p.category)?.name : undefined
                 return (
                   <div key={p._id} className="flex items-center justify-between rounded-lg bg-red-500/10 px-3 py-2">
@@ -690,7 +697,7 @@ export default function DashboardPage() {
                   </div>
                 )
               })}
-              {lowStock.map((p) => {
+              {(stockAlertFilter !== "out" ? lowStock : []).map((p) => {
                 const catName = p.category ? categories.find((c) => c._id === p.category)?.name : undefined
                 return (
                   <div key={p._id} className="flex items-center justify-between rounded-lg bg-yellow-400/10 px-3 py-2">

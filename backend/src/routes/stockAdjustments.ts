@@ -65,17 +65,22 @@ router.patch("/:id/void", requireAuth, requireAdmin, async (req: Request, res: R
   if (!adj) return res.status(404).json({ error: "Not found" });
   if (adj.voided) return res.status(409).json({ error: "Already voided" });
 
-  if (adj.type === "receiving") {
-    // Voiding a receiving means removing stock — ensure there's enough.
-    const product = await Product.findOne({ _id: adj.product, stock: { $gte: adj.quantity } });
-    if (!product) {
-      return res.status(409).json({ error: "Not enough stock to void this receiving" });
+  const productExists = await Product.exists({ _id: adj.product });
+
+  if (productExists) {
+    if (adj.type === "receiving") {
+      // Voiding a receiving means removing stock — ensure there's enough.
+      const product = await Product.findOne({ _id: adj.product, stock: { $gte: adj.quantity } });
+      if (!product) {
+        return res.status(409).json({ error: "Not enough stock to void this receiving" });
+      }
+      await Product.updateOne({ _id: adj.product }, { $inc: { stock: -adj.quantity } });
+    } else {
+      // Voiding wastage restores stock.
+      await Product.updateOne({ _id: adj.product }, { $inc: { stock: adj.quantity } });
     }
-    await Product.updateOne({ _id: adj.product }, { $inc: { stock: -adj.quantity } });
-  } else {
-    // Voiding wastage restores stock.
-    await Product.updateOne({ _id: adj.product }, { $inc: { stock: adj.quantity } });
   }
+  // If the product was deleted, skip stock update but still mark the record voided.
 
   const updated = await StockAdjustment.findByIdAndUpdate(
     adj._id,

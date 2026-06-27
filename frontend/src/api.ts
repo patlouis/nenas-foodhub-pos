@@ -60,6 +60,17 @@ function buildQuery(params?: Record<string, string | number | undefined>): strin
   return qs ? `?${qs}` : ""
 }
 
+export class ApiError extends Error {
+  status: number
+  code: string | undefined
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+    this.code = code
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     // 401 while holding a token means the session expired or was revoked —
@@ -70,7 +81,7 @@ async function handle<T>(res: Response): Promise<T> {
       window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
     }
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `Request failed (${res.status})`)
+    throw new ApiError(body.error || `Request failed (${res.status})`, res.status, body.code)
   }
   return res.json() as Promise<T>
 }
@@ -157,8 +168,8 @@ export const productsApi = {
       body: JSON.stringify({ quantity, reason }),
     }).then(handle<Product>),
 
-  remove: (id: string) =>
-    watchedFetch(`${PRODUCTS}/${id}`, {
+  remove: (id: string, force = false) =>
+    watchedFetch(`${PRODUCTS}/${id}${force ? "?force=true" : ""}`, {
       method: "DELETE",
       headers: authHeaders(),
     }).then(handle<{ ok: boolean }>),

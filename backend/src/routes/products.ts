@@ -195,7 +195,22 @@ router.post("/:id/wastage", requireAuth, requireAdmin, validateBody(wastageSchem
 });
 
 // DELETE /api/products/:id (admin only)
+// ?force=true bypasses the stock-history check.
 router.delete("/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ error: "Invalid product id" });
+  }
+
+  if (req.query.force !== "true") {
+    const hasHistory = await StockAdjustment.exists({ product: req.params.id });
+    if (hasHistory) {
+      return res.status(409).json({
+        code: "HAS_STOCK_HISTORY",
+        error: "This product has inventory log history. Disable it instead, or confirm deletion.",
+      });
+    }
+  }
+
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });
