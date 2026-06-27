@@ -16,6 +16,7 @@ export const createOrderSchema = z.object({
   paymentMethod: z.enum(["cash", "gcash"]).optional().default("cash"),
   orderType: z.enum(["sale", "staff_meal"]).optional().default("sale"),
   staffMealRecipient: z.string().trim().optional(),
+  tableNumber: z.number().int().min(1).max(6).optional(),
 });
 
 export const listOrdersQuerySchema = paginationQuerySchema(1000).extend({

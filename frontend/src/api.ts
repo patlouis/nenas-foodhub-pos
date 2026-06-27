@@ -240,11 +240,11 @@ export const ordersApi = {
   list: (params?: OrderListParams) =>
     watchedFetch(`${ORDERS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Order>>),
 
-  create: (items: NewOrderItem[], paymentMethod: "cash" | "gcash" = "cash", orderType: "sale" | "staff_meal" = "sale", staffMealRecipient?: string) =>
+  create: (items: NewOrderItem[], paymentMethod: "cash" | "gcash" = "cash", orderType: "sale" | "staff_meal" = "sale", staffMealRecipient?: string, tableNumber?: number) =>
     watchedFetch(ORDERS, {
       method: "POST",
       headers: jsonHeaders(),
-      body: JSON.stringify({ items, paymentMethod, orderType, staffMealRecipient }),
+      body: JSON.stringify({ items, paymentMethod, orderType, staffMealRecipient, tableNumber }),
     }).then(handle<Order>),
 
   void: (id: string) =>

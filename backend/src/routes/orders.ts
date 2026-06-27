@@ -78,6 +78,8 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
   const paymentMethod: "cash" | "gcash" = req.body.paymentMethod ?? "cash";
   const orderType: "sale" | "staff_meal" = req.body.orderType ?? "sale";
   const staffMealRecipient: string | undefined = req.body.staffMealRecipient || undefined;
+  // Staff meals aren't customer table sales, so they never carry a table number.
+  const tableNumber: number | undefined = orderType === "staff_meal" ? undefined : req.body.tableNumber;
 
   // Merge duplicate products into one line.
   const qtyById = new Map<string, number>();
@@ -129,7 +131,7 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     let order;
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
-        order = await Order.create({ orderNumber, items: orderItems, total, cashier: req.user!.sub, cashierName: req.user!.name, orderType, staffMealRecipient, paymentMethod });
+        order = await Order.create({ orderNumber, items: orderItems, total, cashier: req.user!.sub, cashierName: req.user!.name, orderType, staffMealRecipient, paymentMethod, tableNumber });
         break;
       } catch (err: any) {
         if (err.code !== 11000) throw err;

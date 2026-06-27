@@ -8,7 +8,7 @@ import CategoriesPage from "./pages/CategoriesPage"
 import UsersPage from "./pages/UsersPage"
 import DashboardPage from "./pages/DashboardPage"
 import LoginPage from "./pages/LoginPage"
-import { useTheme } from "./useTheme"
+import { useTheme } from "./hooks/useTheme"
 import { useAuth } from "./auth"
 import { WAKING_UP_EVENT, WAKE_COMPLETE_EVENT } from "./api"
 

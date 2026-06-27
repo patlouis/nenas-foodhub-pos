@@ -20,6 +20,7 @@ export interface IOrder {
   cashierName?: string; // snapshot, same reasoning as item names
   orderType: "sale" | "staff_meal";
   staffMealRecipient?: string; // snapshot name of the staff member who received the meal
+  tableNumber?: number; // 1–6; absent = takeout / staff meal
   paymentMethod: "cash" | "gcash";
   status: "completed" | "voided";
   voidedAt?: Date;
@@ -54,6 +55,7 @@ const orderSchema = new mongoose.Schema<IOrder>(
     cashierName: { type: String }, // snapshot, same reasoning as item names
     orderType: { type: String, enum: ["sale", "staff_meal"], default: "sale" },
     staffMealRecipient: { type: String },
+    tableNumber: { type: Number, min: 1, max: 6 },
     paymentMethod: { type: String, enum: ["cash", "gcash"], default: "cash" },
     status: { type: String, enum: ["completed", "voided"], default: "completed" },
     voidedAt: { type: Date },

@@ -47,6 +47,14 @@ function TypeBadge({ order }: { order: Order }) {
   return <PaymentBadge method={order.paymentMethod} />
 }
 
+function TableBadge({ n }: { n: number }) {
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[var(--accent-bg)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent)]">
+      Table {n}
+    </span>
+  )
+}
+
 function PaymentBadge({ method }: { method?: "cash" | "gcash" }) {
   return method === "gcash" ? (
     <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-500">
@@ -349,6 +357,7 @@ export default function OrderHistoryPage() {
                         <p className="font-medium text-[var(--text-h)]">{formatDate(o.createdAt)}</p>
                         <p className="flex items-center gap-1.5 text-xs text-[var(--text)]">
                           {orderLabel(o)}
+                          {o.tableNumber != null && <TableBadge n={o.tableNumber} />}
                           {voided && (
                             <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
                               Voided
@@ -428,6 +437,7 @@ export default function OrderHistoryPage() {
                         <span className="font-medium text-[var(--text-h)]">{formatDate(o.createdAt)}</span>
                         <span className="flex items-center gap-1.5 text-xs text-[var(--text)]">
                           {orderLabel(o)}
+                          {o.tableNumber != null && <TableBadge n={o.tableNumber} />}
                           {voided && (
                             <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
                               Voided
@@ -495,7 +505,10 @@ export default function OrderHistoryPage() {
             <div className="flex items-start justify-between gap-4 text-sm text-[var(--text)]">
               <div className="flex flex-col items-start gap-1">
                 <span>{formatDate(viewTarget.createdAt)}</span>
-                <TypeBadge order={viewTarget} />
+                <div className="flex items-center gap-1.5">
+                  <TypeBadge order={viewTarget} />
+                  {viewTarget.tableNumber != null && <TableBadge n={viewTarget.tableNumber} />}
+                </div>
               </div>
               <span className="shrink-0">Cashier: <span className="text-[var(--text-h)]">{viewTarget.cashierName ?? "—"}</span></span>
             </div>

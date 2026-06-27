@@ -61,6 +61,49 @@ describe("POST /api/orders", () => {
       .send({ items: [{ productId: "not-an-id", quantity: 1 }] });
     expect(res.status).toBe(400);
   });
+
+  it("records a valid table number on the order", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await createProduct({ stock: 5 });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: product._id.toString(), quantity: 1 }], tableNumber: 3 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.tableNumber).toBe(3);
+  });
+
+  it("rejects an out-of-range table number", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await createProduct({ stock: 5 });
+
+    for (const tableNumber of [0, 7]) {
+      const res = await request(app)
+        .post("/api/orders")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ items: [{ productId: product._id.toString(), quantity: 1 }], tableNumber });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("ignores a table number on a staff meal", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await createProduct({ stock: 5 });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [{ productId: product._id.toString(), quantity: 1 }],
+        orderType: "staff_meal",
+        tableNumber: 2,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.tableNumber).toBeUndefined();
+  });
 });
 
 describe("PATCH /api/orders/:id/void", () => {

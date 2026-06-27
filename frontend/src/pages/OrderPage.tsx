@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { Product, Category, User } from "../types"
+import type { Product, Category, User, TableKey } from "../types"
+import { TABLE_KEYS } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
+import { useTableCarts } from "../hooks/useTableCarts"
 import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls } from "../components/ui"
 import Modal from "../components/Modal"
 
-type CartLine = { product: Product; quantity: number }
+function tableLabel(t: TableKey): string {
+  return t === "order" ? "Counter" : `Table ${t}`
+}
 
 const qtyBtnCls =
   "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-h)] transition hover:bg-[var(--social-bg)] disabled:cursor-not-allowed disabled:opacity-40"
@@ -72,7 +76,8 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
   const [category, setCategory] = useState("") // "" = All
   const [query, setQuery] = useState("")
-  const [cart, setCart] = useState<CartLine[]>([])
+  const { activeTable, setActiveTable, cart, itemCounts, addToCart, setQty, removeLine, clearActive } =
+    useTableCarts(products)
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
   const [isStaffMeal, setIsStaffMeal] = useState(false)
   const [staffMealRecipient, setStaffMealRecipient] = useState("")
@@ -122,6 +127,15 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     }
   }, [isStaffMeal, usersLoaded])
 
+  // Staff meals only belong to the general Order tab — never a table. Clear the
+  // toggle whenever a table tab is active so it can't leak onto a table order.
+  useEffect(() => {
+    if (activeTable !== "order") {
+      setIsStaffMeal(false)
+      setStaffMealRecipient("")
+    }
+  }, [activeTable])
+
   useEffect(() => {
     if (!pendingBarcodeSku || products.length === 0) return
     const match = products.find(
@@ -129,7 +143,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     )
     if (match) {
       if (match.stock > 0 && match.status !== "disabled") {
-        addToCart(match)
+        handleAdd(match)
       } else {
         setError(`"${match.name}" is unavailable`)
       }
@@ -165,32 +179,9 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     [cart]
   )
 
-  function addToCart(p: Product) {
+  function handleAdd(p: Product) {
     setSuccess(null)
-    setCart((prev) => {
-      const line = prev.find((l) => l.product._id === p._id)
-      if (!line) return [...prev, { product: p, quantity: 1 }]
-      if (line.quantity >= p.stock) return prev
-      return prev.map((l) =>
-        l.product._id === p._id ? { ...l, quantity: l.quantity + 1 } : l
-      )
-    })
-  }
-
-  function setQty(productId: string, qty: number) {
-    setCart((prev) =>
-      qty <= 0
-        ? prev.filter((l) => l.product._id !== productId)
-        : prev.map((l) =>
-            l.product._id === productId
-              ? { ...l, quantity: Math.min(qty, l.product.stock) }
-              : l
-          )
-    )
-  }
-
-  function removeLine(productId: string) {
-    setCart((prev) => prev.filter((l) => l.product._id !== productId))
+    addToCart(p)
   }
 
   const total = cart.reduce((sum, l) => sum + getLineTotal(l.product, l.quantity), 0)
@@ -201,13 +192,17 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     setSuccess(null)
     setSubmitting(true)
     try {
+      // Staff meals and the general order tab carry no table number.
+      const tableNumber =
+        !isStaffMeal && activeTable !== "order" ? Number(activeTable) : undefined
       const order = await ordersApi.create(
         cart.map((l) => ({ productId: l.product._id, quantity: l.quantity })),
         paymentMethod,
         isStaffMeal ? "staff_meal" : "sale",
         isStaffMeal && staffMealRecipient ? staffMealRecipient : undefined,
+        tableNumber,
       )
-      setCart([])
+      clearActive()
       setPaymentMethod("cash")
       setIsStaffMeal(false)
       setStaffMealRecipient("")
@@ -226,7 +221,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     <div className="flex h-dvh flex-col sm:flex-row">
       {/* ---- Menu ---- */}
       <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-        <h1>New Order</h1>
+        <h1 className="m-0 mb-5">New Order</h1>
 
         {error && <ErrorBanner message={error} />}
 
@@ -265,7 +260,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
               return (
                 <button
                   key={p._id}
-                  onClick={() => addToCart(p)}
+                  onClick={() => handleAdd(p)}
                   disabled={unavailable}
                   className={
                     "relative flex flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
@@ -300,20 +295,53 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
       {/* ---- Receipt ---- */}
       <aside className="flex w-full shrink-0 flex-col border-t border-[var(--border)] sm:w-72 sm:border-l sm:border-t-0 lg:w-96">
+        {/* Table tabs — same toggle-button styling as the payment selector below.
+            A green corner dot marks tables with an order in progress. */}
+        <div className="border-b border-[var(--border)] px-5 py-3">
+          <div className="flex gap-1">
+            {TABLE_KEYS.map((t) => {
+              const occupied = itemCounts[t] > 0
+              const active = activeTable === t
+              return (
+                <button
+                  key={t}
+                  onClick={() => setActiveTable(t)}
+                  title={t === "order" ? "Counter" : `Table ${t}`}
+                  className={
+                    "relative flex h-9 items-center justify-center rounded-lg border text-sm font-medium transition " +
+                    (t === "order" ? "shrink-0 px-3 " : "flex-1 px-1 ") +
+                    (active
+                      ? "border-[var(--accent)] bg-[var(--accent-bg)] text-[var(--accent)]"
+                      : occupied
+                        ? "border-[var(--border)] text-[var(--text-h)] hover:bg-[var(--social-bg)]"
+                        : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)]")
+                  }
+                >
+                  {t === "order" ? "Counter" : t}
+                  {occupied && !active && (
+                    <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className="border-b border-[var(--border)] px-5 py-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="m-0 text-lg">Current order</h2>
-            <button
-              onClick={() => { setIsStaffMeal((v) => !v); setStaffMealRecipient("") }}
-              className={
-                "h-8 rounded-lg border px-3 text-xs font-medium transition " +
-                (isStaffMeal
-                  ? "border-purple-500 bg-purple-500/10 text-purple-600"
-                  : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)]")
-              }
-            >
-              Staff meal
-            </button>
+            <h2 className="m-0 text-lg">{tableLabel(activeTable)}</h2>
+            {activeTable === "order" && (
+              <button
+                onClick={() => { setIsStaffMeal((v) => !v); setStaffMealRecipient("") }}
+                className={
+                  "h-8 rounded-lg border px-3 text-xs font-medium transition " +
+                  (isStaffMeal
+                    ? "border-purple-500 bg-purple-500/10 text-purple-600"
+                    : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)]")
+                }
+              >
+                Staff meal
+              </button>
+            )}
           </div>
         </div>
 
@@ -460,6 +488,11 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
             ) : (
               <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
                 Cash
+              </span>
+            )}
+            {!isStaffMeal && activeTable !== "order" && (
+              <span className="inline-flex items-center rounded-full bg-[var(--accent-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--accent)]">
+                Table {activeTable}
               </span>
             )}
             {isStaffMeal && staffMealRecipient && (
