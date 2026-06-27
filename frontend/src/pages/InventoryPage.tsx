@@ -8,7 +8,7 @@ import {
   PageShell, PageHeader, ErrorBanner, Toolbar, SearchBox, TableCard, EmptyState,
   SortTh, PlusIcon, PencilIcon, TrashIcon,
   inputCls, selectCls, btnPrimaryCls, btnOutlineCls, btnDangerCls,
-  iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE, Paginator,
+  iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE_INVENTORY, Paginator,
 } from "../components/ui"
 
 type SortKey = "name" | "sku" | "category" | "costPrice" | "price" | "stock"
@@ -47,7 +47,7 @@ export default function InventoryPage() {
   const [sortKey, setSortKey] = useState<SortKey>("category")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_INVENTORY)
 
   // Add / edit modal
   const [modalOpen, setModalOpen] = useState(false)
