@@ -336,7 +336,7 @@ export default function DashboardPage() {
     [wastageAdjs, curFrom, curTo],
   )
   const curWastageCost = useMemo(
-    () => curWastageAdjs.reduce((s, a) => s + a.costPrice * a.quantity, 0),
+    () => curWastageAdjs.reduce((s, a) => s + (a.costPrice ?? 0) * a.quantity, 0),
     [curWastageAdjs],
   )
 
@@ -727,7 +727,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="ml-2 shrink-0 text-right">
                     <p className="text-sm font-semibold tabular-nums text-red-500">−{a.quantity}</p>
-                    <p className="text-[11px] tabular-nums text-[var(--text)]">{a.costPrice > 0 ? fmtMoney(a.costPrice * a.quantity) : "—"}</p>
+                    <p className="text-[11px] tabular-nums text-[var(--text)]">{a.costPrice != null && a.costPrice > 0 ? fmtMoney(a.costPrice * a.quantity) : "—"}</p>
                   </div>
                 </div>
               ))}

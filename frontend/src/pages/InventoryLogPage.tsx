@@ -253,7 +253,14 @@ export default function InventoryLogPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-medium text-[var(--text-h)]">{adj.productName}</p>
+                        <p className="flex items-center gap-1.5 font-medium text-[var(--text-h)]">
+                          {adj.productName}
+                          {adj.voided && (
+                            <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
+                              Voided
+                            </span>
+                          )}
+                        </p>
                         <p className="mt-0.5 text-xs text-[var(--text)]">{fmtDate(adj.createdAt)}</p>
                       </div>
                       <TypeBadge type={adj.type} />
@@ -261,16 +268,21 @@ export default function InventoryLogPage() {
                     {adj.type === "wastage" && adj.reason && (
                       <p className="mt-1.5 text-xs text-[var(--text)]">{wastageReasonLabel(adj.reason)}</p>
                     )}
+                    {adj.voided && adj.voidedByName && (
+                      <p className="mt-1.5 text-xs text-red-500">
+                        Voided by {adj.voidedByName}{adj.voidedAt ? ` · ${fmtDate(adj.voidedAt)}` : ""}
+                      </p>
+                    )}
                     <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2">
                       <div className="flex items-center gap-3 text-sm">
                         <span className={`font-semibold tabular-nums ${adj.type === "wastage" ? "text-red-500" : "text-green-600"}`}>
                           {adj.type === "wastage" ? "−" : "+"}{adj.quantity}
                         </span>
-                        <span className="tabular-nums text-[var(--text-h)]">{fmtMoney(adj.costPrice * adj.quantity)}</span>
+                        <span className={`tabular-nums text-[var(--text-h)] ${adj.voided ? "line-through" : ""}`}>
+                          {adj.costPrice != null ? fmtMoney(adj.costPrice * adj.quantity) : "—"}
+                        </span>
                       </div>
-                      {adj.voided ? (
-                        <span className="text-xs text-[var(--text)]">Voided</span>
-                      ) : (
+                      {!adj.voided && (
                         <button
                           onClick={() => { setVoidTarget(adj); setVoidError(null) }}
                           title="Void adjustment"
@@ -310,7 +322,21 @@ export default function InventoryLogPage() {
                         }
                       >
                         <td className="whitespace-nowrap px-4 py-3 text-[var(--text)]">{fmtDate(adj.createdAt)}</td>
-                        <td className="px-4 py-3 font-medium text-[var(--text-h)]">{adj.productName}</td>
+                        <td className="px-4 py-3 font-medium text-[var(--text-h)]">
+                          <span className="flex items-center gap-1.5">
+                            {adj.productName}
+                            {adj.voided && (
+                              <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
+                                Voided
+                              </span>
+                            )}
+                          </span>
+                          {adj.voided && adj.voidedByName && (
+                            <span className="text-xs font-normal text-red-500">
+                              by {adj.voidedByName}{adj.voidedAt ? ` · ${fmtDate(adj.voidedAt)}` : ""}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3"><TypeBadge type={adj.type} /></td>
                         <td className="px-4 py-3 text-[var(--text)]">
                           {adj.type === "wastage" ? wastageReasonLabel(adj.reason) : "—"}
@@ -320,17 +346,15 @@ export default function InventoryLogPage() {
                             {adj.type === "wastage" ? "−" : "+"}{adj.quantity}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-[var(--text)]">
-                          {fmtMoney(adj.costPrice)}
+                        <td className={`px-4 py-3 text-right tabular-nums text-[var(--text)] ${adj.voided ? "line-through" : ""}`}>
+                          {adj.costPrice != null ? fmtMoney(adj.costPrice) : "—"}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums font-medium text-[var(--text-h)]">
-                          {fmtMoney(adj.costPrice * adj.quantity)}
+                        <td className={`px-4 py-3 text-right tabular-nums font-medium text-[var(--text-h)] ${adj.voided ? "line-through" : ""}`}>
+                          {adj.costPrice != null ? fmtMoney(adj.costPrice * adj.quantity) : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
-                            {adj.voided ? (
-                              <span className="text-xs text-[var(--text)]">Voided</span>
-                            ) : (
+                            {!adj.voided && (
                               <button
                                 onClick={() => { setVoidTarget(adj); setVoidError(null) }}
                                 title="Void adjustment"

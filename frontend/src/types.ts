@@ -56,7 +56,7 @@ export interface StockAdjustment {
   _id: string
   product: string
   productName: string
-  costPrice: number
+  costPrice: number | null
   quantity: number
   type: "wastage" | "receiving"
   reason?: string

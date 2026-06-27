@@ -30,7 +30,7 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
     const { page, limit, type, from, to, q, sortKey, sortDir } = parsed.data;
     const dir = sortDir === "asc" ? 1 : -1;
 
-    const filter: Record<string, unknown> = { voided: false };
+    const filter: Record<string, unknown> = {};
     if (type) filter.type = type;
     if (q) filter.productName = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
     if (from || to) {
@@ -44,7 +44,7 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
       StockAdjustment.find(filter).sort({ [sortKey]: dir } as Record<SortKey, 1 | -1>).skip((page - 1) * limit).limit(limit),
       StockAdjustment.countDocuments(filter),
       StockAdjustment.aggregate([
-        { $match: filter },
+        { $match: { ...filter, voided: false, type: "wastage" } },
         { $group: { _id: null, totalCost: { $sum: { $multiply: ["$costPrice", "$quantity"] } } } },
       ]),
     ]);
