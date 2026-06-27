@@ -47,7 +47,7 @@ export default function InventoryPage() {
   const [sortKey, setSortKey] = useState<SortKey>("category")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(PAGE_SIZE)
+  const [pageSize, setPageSize] = useState(25)
 
   // Add / edit modal
   const [modalOpen, setModalOpen] = useState(false)
