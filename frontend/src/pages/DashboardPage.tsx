@@ -21,6 +21,11 @@ function currentBusinessDate(): string {
   }
   return toDateStr(now)
 }
+// Current business day as a Date (noon, to dodge TZ edges) for deriving the
+// current week/month consistently with the cutoff.
+function nowBusiness(): Date {
+  return new Date(currentBusinessDate() + "T12:00:00")
+}
 function toMonthStr(d: Date) { return d.toLocaleDateString("sv").slice(0, 7) }
 function toWeekStr(d: Date): string {
   const t = new Date(d)
@@ -32,17 +37,20 @@ function toWeekStr(d: Date): string {
 }
 function monthRange(s: string): [Date, Date] {
   const [y, m] = s.split("-").map(Number)
-  return [new Date(y, m - 1, 1), new Date(y, m, 0, 23, 59, 59, 999)]
+  // Business month: 1st cutoff → next 1st cutoff, so the post-midnight closing
+  // tail stays with the day (and month) being closed.
+  const from = new Date(y, m - 1, 1, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
+  const to = new Date(y, m, 1, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
+  return [from, new Date(to.getTime() - 1)]
 }
 function weekRange(s: string): [Date, Date] {
   const [yr, wk] = s.split("-W").map(Number)
   const jan4 = new Date(yr, 0, 4)
   const j4d = jan4.getDay() || 7
   const mon = new Date(jan4.getTime() + (wk - 1) * 7 * 86400000 - (j4d - 1) * 86400000)
-  mon.setHours(0, 0, 0, 0)
-  const sun = new Date(mon.getTime() + 6 * 86400000)
-  sun.setHours(23, 59, 59, 999)
-  return [mon, sun]
+  // Business week: Mon cutoff → next Mon cutoff.
+  mon.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
+  return [mon, new Date(mon.getTime() + 7 * 86400000 - 1)]
 }
 function dayRange(s: string): [Date, Date] {
   // Business day: [cutoff today, cutoff next day) so the post-midnight closing
@@ -87,8 +95,11 @@ function periodLabel(mode: DateMode, pick: string): string {
     })
   }
   if (mode === "week") {
-    const [from, to] = weekRange(pick)
-    return `${from.toLocaleDateString("en", { month: "short", day: "numeric" })} – ${to.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}`
+    const [from] = weekRange(pick)
+    // Display the Mon–Sun calendar span even though the window starts at the
+    // cutoff (the business-week boundary sits at 04:00 on those dates).
+    const sun = new Date(from.getTime() + 6 * 86400000)
+    return `${from.toLocaleDateString("en", { month: "short", day: "numeric" })} – ${sun.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}`
   }
   return new Date(pick + "-02").toLocaleDateString("en", { month: "long", year: "numeric" })
 }
@@ -284,10 +295,9 @@ export default function DashboardPage() {
 
   function switchMode(mode: DateMode) {
     setDateMode(mode)
-    const now = new Date()
     if (mode === "day")        setDatePick(currentBusinessDate())
-    else if (mode === "week")  setDatePick(toWeekStr(now))
-    else if (mode === "month") setDatePick(toMonthStr(now))
+    else if (mode === "week")  setDatePick(toWeekStr(nowBusiness()))
+    else if (mode === "month") setDatePick(toMonthStr(nowBusiness()))
     else                       setDatePick("")
   }
 
@@ -430,24 +440,19 @@ export default function DashboardPage() {
       const [wFrom] = weekRange(datePick)
       const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
       return Array.from({ length: 7 }, (_, i) => {
-        const from = new Date(wFrom.getTime() + i * 86400000)
-        from.setHours(0, 0, 0, 0)
-        const to = new Date(from.getTime() + 86400000 - 1)
+        // Bucket by business day so the per-day bars match the Day view.
+        const [from, to] = dayRange(toDateStr(new Date(wFrom.getTime() + i * 86400000)))
         const value = activeOrders
           .filter((o) => o.createdAt && inRange(o, from, to))
           .reduce((s, o) => s + o.total, 0)
         return { label: days[i], value }
       })
     }
-    // month: one bar per calendar day
-    const [mFrom, mTo] = monthRange(datePick)
-    const daysInMonth = mTo.getDate()
+    // month: one bar per business day
+    const [my, mm] = datePick.split("-").map(Number)
+    const daysInMonth = new Date(my, mm, 0).getDate()
     return Array.from({ length: daysInMonth }, (_, i) => {
-      const from = new Date(mFrom)
-      from.setDate(i + 1)
-      from.setHours(0, 0, 0, 0)
-      const to = new Date(from)
-      to.setHours(23, 59, 59, 999)
+      const [from, to] = dayRange(`${datePick}-${String(i + 1).padStart(2, "0")}`)
       const value = activeOrders
         .filter((o) => o.createdAt && inRange(o, from, to))
         .reduce((s, o) => s + o.total, 0)
@@ -576,7 +581,7 @@ export default function DashboardPage() {
             <input
               type="week"
               value={datePick}
-              max={toWeekStr(new Date())}
+              max={toWeekStr(nowBusiness())}
               onChange={(e) => setDatePick(e.target.value)}
               className={inputCls}
             />
@@ -585,7 +590,7 @@ export default function DashboardPage() {
             <input
               type="month"
               value={datePick}
-              max={toMonthStr(new Date())}
+              max={toMonthStr(nowBusiness())}
               onChange={(e) => setDatePick(e.target.value)}
               className={inputCls}
             />
