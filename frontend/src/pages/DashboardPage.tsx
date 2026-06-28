@@ -6,8 +6,21 @@ import { ErrorBanner, PageShell } from "../components/ui"
 
 type DateMode = "all" | "day" | "week" | "month"
 
+// Orders entered after midnight but before this hour still close out the
+// previous business day (the shop shuts at 12am but rings up until ~4am).
+const BUSINESS_DAY_CUTOFF_HOUR = 4
+
 // ---- date helpers (mirrors OrderHistoryPage) ----
 function toDateStr(d: Date)  { return d.toLocaleDateString("sv") }
+// The business day "today" belongs to — before the cutoff we're still
+// closing out yesterday.
+function currentBusinessDate(): string {
+  const now = new Date()
+  if (now.getHours() < BUSINESS_DAY_CUTOFF_HOUR) {
+    return toDateStr(new Date(now.getTime() - 86400000))
+  }
+  return toDateStr(now)
+}
 function toMonthStr(d: Date) { return d.toLocaleDateString("sv").slice(0, 7) }
 function toWeekStr(d: Date): string {
   const t = new Date(d)
@@ -32,7 +45,11 @@ function weekRange(s: string): [Date, Date] {
   return [mon, sun]
 }
 function dayRange(s: string): [Date, Date] {
-  return [new Date(s + "T00:00:00"), new Date(s + "T23:59:59.999")]
+  // Business day: [cutoff today, cutoff next day) so the post-midnight closing
+  // tail stays with the day that's being closed.
+  const from = new Date(s + "T00:00:00")
+  from.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
+  return [from, new Date(from.getTime() + 86400000 - 1)]
 }
 
 function getRange(mode: DateMode, pick: string): [Date, Date] {
@@ -262,13 +279,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dateMode, setDateMode] = useState<DateMode>("day")
-  const [datePick, setDatePick] = useState(() => toDateStr(new Date()))
+  const [datePick, setDatePick] = useState(() => currentBusinessDate())
   const [stockAlertFilter, setStockAlertFilter] = useState<"all" | "out" | "low">("all")
 
   function switchMode(mode: DateMode) {
     setDateMode(mode)
     const now = new Date()
-    if (mode === "day")        setDatePick(toDateStr(now))
+    if (mode === "day")        setDatePick(currentBusinessDate())
     else if (mode === "week")  setDatePick(toWeekStr(now))
     else if (mode === "month") setDatePick(toMonthStr(now))
     else                       setDatePick("")
@@ -394,10 +411,17 @@ export default function DashboardPage() {
     if (dateMode === "day") {
       const hourLabel = (h: number) =>
         h === 0 ? "12am" : h < 12 ? `${h}am` : h === 12 ? "12pm" : `${h - 12}pm`
+      // 6am→midnight operating window; the trailing 12am bar collects the whole
+      // after-midnight closing tail (00:00 up to the cutoff), which still
+      // belongs to this business day.
       const indices = [...Array.from({ length: 18 }, (_, i) => i + 6), 0]
       return indices.map((h) => {
         const value = curOrders
-          .filter((o) => o.createdAt && new Date(o.createdAt).getHours() === h)
+          .filter((o) => {
+            if (!o.createdAt) return false
+            const oh = new Date(o.createdAt).getHours()
+            return h === 0 ? oh < BUSINESS_DAY_CUTOFF_HOUR : oh === h
+          })
           .reduce((s, o) => s + o.total, 0)
         return { label: hourLabel(h), value }
       })
@@ -476,7 +500,14 @@ export default function DashboardPage() {
     const hourLabel = (h: number) =>
       h === 0 ? "12am" : h < 12 ? `${h}am` : h === 12 ? "12pm" : `${h - 12}pm`
     const indices = [...Array.from({ length: 18 }, (_, i) => i + 6), 0]
-    return indices.map((h) => ({ label: hourLabel(h), value: buckets[h] }))
+    return indices.map((h) => ({
+      label: hourLabel(h),
+      // 12am bar folds in the after-midnight closing tail (matches the
+      // Hourly Revenue chart).
+      value: h === 0
+        ? buckets.slice(0, BUSINESS_DAY_CUTOFF_HOUR).reduce((s, n) => s + n, 0)
+        : buckets[h],
+    }))
   }, [activeOrders])
 
   // Inventory alerts
@@ -536,7 +567,7 @@ export default function DashboardPage() {
             <input
               type="date"
               value={datePick}
-              max={toDateStr(new Date())}
+              max={currentBusinessDate()}
               onChange={(e) => setDatePick(e.target.value)}
               className={inputCls}
             />
