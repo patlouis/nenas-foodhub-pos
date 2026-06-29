@@ -4,6 +4,7 @@ import OrderPage from "./pages/OrderPage"
 import OrderHistoryPage from "./pages/OrderHistoryPage"
 import InventoryPage from "./pages/InventoryPage"
 import InventoryLogPage from "./pages/InventoryLogPage"
+import ExpensesPage from "./pages/ExpensesPage"
 import CategoriesPage from "./pages/CategoriesPage"
 import UsersPage from "./pages/UsersPage"
 import DashboardPage from "./pages/DashboardPage"
@@ -23,7 +24,7 @@ function WakingUpBanner() {
 function App() {
   const { user, logout } = useAuth()
 
-  const ADMIN_ONLY: Page[] = ["dashboard", "inventory-log", "users"]
+  const ADMIN_ONLY: Page[] = ["dashboard", "inventory-log", "expenses", "users"]
 
   function defaultPage(role: string | undefined): Page {
     return role === "admin" ? "dashboard" : "order"
@@ -200,6 +201,7 @@ function App() {
 {page === "categories" && <CategoriesPage />}
           {page === "inventory"     && <InventoryPage />}
           {page === "inventory-log" && user.role === "admin" && <InventoryLogPage />}
+          {page === "expenses" && user.role === "admin" && <ExpensesPage />}
           {page === "users"         && user.role === "admin" && <UsersPage />}
         </main>
       </div>
