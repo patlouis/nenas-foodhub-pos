@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.js";
 import categoryRoutes from "./routes/categories.js";
 import orderRoutes from "./routes/orders.js";
 import stockAdjustmentRoutes from "./routes/stockAdjustments.js";
+import expenseRoutes from "./routes/expenses.js";
 import { requireAuth } from "./middleware/auth.js";
 
 // Comma-separated list of allowed frontend origins, e.g.
@@ -29,6 +30,7 @@ app.use("/api/products", requireAuth, productRoutes);
 app.use("/api/categories", requireAuth, categoryRoutes);
 app.use("/api/orders", requireAuth, orderRoutes);
 app.use("/api/stock-adjustments", requireAuth, stockAdjustmentRoutes);
+app.use("/api/expenses", requireAuth, expenseRoutes);
 app.use("/api/users", userRoutes);
 
 // Global JSON error handler — catches anything routes don't handle themselves,
