@@ -7,6 +7,7 @@ export interface IExpense extends Document {
   amount: number;
   category: ExpenseCategory;
   note?: string;
+  qty?: number;
   date: Date;
   loggedBy: mongoose.Types.ObjectId;
   loggedByName: string;
@@ -23,6 +24,7 @@ const expenseSchema = new mongoose.Schema<IExpense>(
     amount: { type: Number, required: true, min: 0.01 },
     category: { type: String, enum: EXPENSE_CATEGORIES, required: true },
     note: { type: String, maxlength: 200 },
+    qty: { type: Number, min: 0.01 },
     date: { type: Date, required: true },
     loggedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     loggedByName: { type: String, required: true },

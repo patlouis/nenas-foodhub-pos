@@ -49,11 +49,12 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
 
 router.post("/", requireAuth, requireAdmin, validateBody(createExpenseSchema), async (req: Request, res: Response) => {
   try {
-    const { amount, category, note, date } = req.body;
+    const { amount, category, note, qty, date } = req.body;
     const expense = await Expense.create({
       amount,
       category,
       note: note || undefined,
+      qty: qty ?? undefined,
       date: date ? new Date(date) : new Date(),
       loggedBy: req.user!.sub,
       loggedByName: req.user!.name,

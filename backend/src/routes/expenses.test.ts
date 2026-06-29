@@ -68,6 +68,38 @@ describe("POST /api/expenses", () => {
       .send({ amount: 100, category: "mortgage" });
     expect(res.status).toBe(400);
   });
+
+  it("creates an expense with qty", async () => {
+    const { token } = await loginAs("admin");
+    const res = await request(app)
+      .post("/api/expenses")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ amount: 500, category: "supplies", qty: 3 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.qty).toBe(3);
+  });
+
+  it("creates an expense with fractional qty", async () => {
+    const { token } = await loginAs("admin");
+    const res = await request(app)
+      .post("/api/expenses")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ amount: 200, category: "supplies", qty: 1.5 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.qty).toBe(1.5);
+  });
+
+  it("rejects qty less than 0.01", async () => {
+    const { token } = await loginAs("admin");
+    const res = await request(app)
+      .post("/api/expenses")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ amount: 500, category: "supplies", qty: 0 });
+
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("GET /api/expenses", () => {
