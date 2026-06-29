@@ -104,6 +104,39 @@ describe("PATCH /api/products/:id/stock", () => {
     const updated = await Product.findById(product._id);
     expect(updated!.stock).toBe(2);
   });
+
+  it("receiving with a per-batch cost updates the product cost and snapshots it", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Rice", price: 40, stock: 2, costPrice: 25 });
+
+    const res = await request(app)
+      .patch(`/api/products/${product._id}/stock`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ delta: 10, costPrice: 30 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.stock).toBe(12);
+    expect(res.body.costPrice).toBe(30); // latest cost recorded on the product
+
+    const adj = await StockAdjustment.findOne({ product: product._id, type: "receiving" });
+    expect(adj!.costPrice).toBe(30); // batch cost snapshotted on the adjustment
+  });
+
+  it("receiving without a cost keeps the current product cost", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Rice", price: 40, stock: 2, costPrice: 25 });
+
+    const res = await request(app)
+      .patch(`/api/products/${product._id}/stock`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ delta: 10 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.costPrice).toBe(25); // unchanged
+
+    const adj = await StockAdjustment.findOne({ product: product._id, type: "receiving" });
+    expect(adj!.costPrice).toBe(25);
+  });
 });
 
 describe("POST /api/products/:id/wastage", () => {
@@ -202,6 +235,51 @@ describe("GET /api/products — category sort uses category order", () => {
     expect(res.status).toBe(200);
     expect(res.body.data[0].name).toBe("Chips");
     expect(res.body.data[1].name).toBe("Cola");
+  });
+});
+
+describe("PUT /api/products/:id — cost backfill", () => {
+  it("backfills cost onto adjustments that were logged without one", async () => {
+    const { token } = await loginAs("admin");
+    // Create with initial stock but no cost → receiving row snapshots null.
+    const created = await request(app)
+      .post("/api/products")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Thing", price: 50, stock: 10 });
+    expect(created.status).toBe(201);
+
+    const before = await StockAdjustment.findOne({ product: created.body._id });
+    expect(before!.costPrice).toBeNull();
+
+    // Now set the cost.
+    const res = await request(app)
+      .put(`/api/products/${created.body._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Thing", price: 50, costPrice: 32 });
+    expect(res.status).toBe(200);
+
+    const after = await StockAdjustment.findOne({ product: created.body._id });
+    expect(after!.costPrice).toBe(32);
+  });
+
+  it("does not overwrite a cost already captured on an adjustment", async () => {
+    const { token } = await loginAs("admin");
+    // Created WITH a cost → receiving row snapshots 32.
+    const created = await request(app)
+      .post("/api/products")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Widget", price: 50, stock: 10, costPrice: 32 });
+    expect(created.status).toBe(201);
+
+    // Reprice the cost to 34 — historical receipt must stay at 32.
+    const res = await request(app)
+      .put(`/api/products/${created.body._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Widget", price: 50, costPrice: 34 });
+    expect(res.status).toBe(200);
+
+    const after = await StockAdjustment.findOne({ product: created.body._id });
+    expect(after!.costPrice).toBe(32);
   });
 });
 

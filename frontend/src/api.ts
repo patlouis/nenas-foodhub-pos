@@ -154,11 +154,11 @@ export const productsApi = {
       body: JSON.stringify(data),
     }).then(handle<Product>),
 
-  adjustStock: (id: string, delta: number) =>
+  adjustStock: (id: string, delta: number, costPrice?: number | null) =>
     watchedFetch(`${PRODUCTS}/${id}/stock`, {
       method: "PATCH",
       headers: jsonHeaders(),
-      body: JSON.stringify({ delta }),
+      body: JSON.stringify({ delta, ...(costPrice != null ? { costPrice } : {}) }),
     }).then(handle<Product>),
 
   recordWastage: (id: string, quantity: number, reason: string) =>

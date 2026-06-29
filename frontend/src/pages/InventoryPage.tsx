@@ -66,6 +66,7 @@ export default function InventoryPage() {
   // Restock modal
   const [restockTarget, setRestockTarget] = useState<Product | null>(null)
   const [delta, setDelta] = useState("")
+  const [restockCost, setRestockCost] = useState("")
   const [restockError, setRestockError] = useState<string | null>(null)
   const [restocking, setRestocking] = useState(false)
 
@@ -243,6 +244,7 @@ export default function InventoryPage() {
   function openRestock(p: Product) {
     setRestockTarget(p)
     setDelta("")
+    setRestockCost(p.costPrice != null ? String(p.costPrice) : "")
     setRestockError(null)
   }
 
@@ -256,7 +258,8 @@ export default function InventoryPage() {
     setRestocking(true)
     setRestockError(null)
     try {
-      const updated = await productsApi.adjustStock(restockTarget._id, qty)
+      const cost = restockCost.trim() !== "" ? Number(restockCost) : null
+      const updated = await productsApi.adjustStock(restockTarget._id, qty, cost)
       setProducts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)))
       setRestockTarget(null)
     } catch (err) {
@@ -807,6 +810,20 @@ export default function InventoryPage() {
                 className={inputCls}
                 autoFocus
               />
+            </label>
+
+            <label className={fieldLabelCls}>
+              Cost per unit (₱)
+              <input
+                type="number" min="0" step="0.01"
+                value={restockCost}
+                onChange={(e) => setRestockCost(e.target.value)}
+                placeholder="optional"
+                className={inputCls}
+              />
+              <span className="text-xs font-normal text-[var(--text)]">
+                Recorded against this batch and set as the product&apos;s current cost.
+              </span>
             </label>
 
             {newStock !== null && (

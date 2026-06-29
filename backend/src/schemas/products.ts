@@ -22,6 +22,8 @@ export const adjustStockSchema = z.object({
     .number()
     .int("delta must be a non-zero integer")
     .refine((d) => d !== 0, "delta must be a non-zero integer"),
+  // Optional unit cost for a received batch — becomes the product's latest cost.
+  costPrice: z.number().min(0, "costPrice must be 0 or greater").nullable().optional(),
 });
 
 // Fixed set of reasons stock can be written off. Keep in sync with the

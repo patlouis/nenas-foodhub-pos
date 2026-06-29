@@ -113,13 +113,10 @@ function orderLabel(o: Order) {
 
 function formatDate(iso?: string) {
   if (!iso) return "—"
-  return new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  const d = new Date(iso)
+  const date = d.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" })
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+  return `${date} · ${time}`
 }
 
 export default function OrderHistoryPage() {
@@ -434,7 +431,7 @@ export default function OrderHistoryPage() {
                       }
                     >
                       <td className="px-4 py-3">
-                        <span className="font-medium text-[var(--text-h)]">{formatDate(o.createdAt)}</span>
+                        <span className="whitespace-nowrap font-medium text-[var(--text-h)]">{formatDate(o.createdAt)}</span>
                         <span className="flex items-center gap-1.5 text-xs text-[var(--text)]">
                           {orderLabel(o)}
                           {o.tableNumber != null && <TableBadge n={o.tableNumber} />}

@@ -109,6 +109,17 @@ router.put("/:id", requireAuth, requireAdmin, validateBody(updateProductSchema),
       { returnDocument: "after", runValidators: true }
     );
     if (!product) return res.status(404).json({ error: "Not found" });
+
+    // Backfill the cost onto past adjustments that never captured one (e.g.
+    // stock received before a cost was entered). Only fills nulls — a real
+    // snapshot is left untouched so repricing never rewrites history.
+    if (data.costPrice != null) {
+      await StockAdjustment.updateMany(
+        { product: product._id, costPrice: null },
+        { $set: { costPrice: data.costPrice } }
+      );
+    }
+
     res.json(product);
   } catch (err: any) {
     if (err.code === 11000) {
@@ -121,10 +132,14 @@ router.put("/:id", requireAuth, requireAdmin, validateBody(updateProductSchema),
 // PATCH /api/products/:id/stock — adjust stock (admin only). Logs to stock_adjustments.
 router.patch("/:id/stock", requireAuth, requireAdmin, validateBody(adjustStockSchema), async (req: Request, res: Response) => {
   try {
-    const { delta } = req.body;
+    const { delta, costPrice } = req.body;
+    // A received batch can carry its own unit cost: record it as the product's
+    // latest cost so this and future snapshots (and menu profit) reflect it.
+    const update: Record<string, unknown> = { $inc: { stock: delta } };
+    if (delta > 0 && costPrice != null) update.$set = { costPrice };
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, ...(delta < 0 ? { stock: { $gte: -delta } } : {}) },
-      { $inc: { stock: delta } },
+      update,
       { returnDocument: "after" }
     );
     if (!product) {
