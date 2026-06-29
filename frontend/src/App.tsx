@@ -198,7 +198,7 @@ function App() {
             <OrderPage active={page === "order"} pendingBarcodeSku={pendingBarcodeSku} onBarcodeConsumed={() => setPendingBarcodeSku(null)} />
           </div>
           {page === "history"    && <OrderHistoryPage />}
-{page === "categories" && <CategoriesPage />}
+          {page === "categories" && <CategoriesPage />}
           {page === "inventory"     && <InventoryPage />}
           {page === "inventory-log" && user.role === "admin" && <InventoryLogPage />}
           {page === "expenses" && user.role === "admin" && <ExpensesPage />}

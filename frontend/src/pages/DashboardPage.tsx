@@ -4,61 +4,14 @@ import { wastageReasonLabel } from "../types"
 import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi, expensesApi } from "../api"
 import { ErrorBanner, PageShell } from "../components/ui"
 
+import {
+  BUSINESS_DAY_CUTOFF_HOUR,
+  toDateStr, toMonthStr, toWeekStr,
+  currentBusinessDate, nowBusiness,
+  dayRange, weekRange, monthRange,
+} from "../utils/dateHelpers"
+
 type DateMode = "all" | "day" | "week" | "month"
-
-// Orders entered after midnight but before this hour still close out the
-// previous business day (the shop shuts at 12am but rings up until ~4am).
-const BUSINESS_DAY_CUTOFF_HOUR = 4
-
-// ---- date helpers (mirrors OrderHistoryPage) ----
-function toDateStr(d: Date)  { return d.toLocaleDateString("sv") }
-// The business day "today" belongs to — before the cutoff we're still
-// closing out yesterday.
-function currentBusinessDate(): string {
-  const now = new Date()
-  if (now.getHours() < BUSINESS_DAY_CUTOFF_HOUR) {
-    return toDateStr(new Date(now.getTime() - 86400000))
-  }
-  return toDateStr(now)
-}
-// Current business day as a Date (noon, to dodge TZ edges) for deriving the
-// current week/month consistently with the cutoff.
-function nowBusiness(): Date {
-  return new Date(currentBusinessDate() + "T12:00:00")
-}
-function toMonthStr(d: Date) { return d.toLocaleDateString("sv").slice(0, 7) }
-function toWeekStr(d: Date): string {
-  const t = new Date(d)
-  t.setHours(0, 0, 0, 0)
-  t.setDate(t.getDate() + 3 - ((t.getDay() + 6) % 7))
-  const w1 = new Date(t.getFullYear(), 0, 4)
-  const wn = 1 + Math.round(((t.getTime() - w1.getTime()) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7)
-  return `${t.getFullYear()}-W${String(wn).padStart(2, "0")}`
-}
-function monthRange(s: string): [Date, Date] {
-  const [y, m] = s.split("-").map(Number)
-  // Business month: 1st cutoff → next 1st cutoff, so the post-midnight closing
-  // tail stays with the day (and month) being closed.
-  const from = new Date(y, m - 1, 1, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
-  const to = new Date(y, m, 1, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
-  return [from, new Date(to.getTime() - 1)]
-}
-function weekRange(s: string): [Date, Date] {
-  const [yr, wk] = s.split("-W").map(Number)
-  const jan4 = new Date(yr, 0, 4)
-  const j4d = jan4.getDay() || 7
-  const mon = new Date(jan4.getTime() + (wk - 1) * 7 * 86400000 - (j4d - 1) * 86400000)
-  // Business week: Mon cutoff → next Mon cutoff.
-  mon.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
-  return [mon, new Date(mon.getTime() + 7 * 86400000 - 1)]
-}
-function dayRange(s: string): [Date, Date] {
-  // Business day: [cutoff today, cutoff next day) so the post-midnight closing
-  // tail stays with the day that's being closed.
-  const from = new Date(s + "T00:00:00")
-  from.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0)
-  return [from, new Date(from.getTime() + 86400000 - 1)]
-}
 
 function getRange(mode: DateMode, pick: string): [Date, Date] {
   if (mode === "day")   return dayRange(pick)
@@ -405,6 +358,8 @@ export default function DashboardPage() {
     }, 0)
   const curProfit = useMemo(() => calcProfit(curOrders), [curOrders, costByName])
   const prvProfit = useMemo(() => calcProfit(prvOrders), [prvOrders, costByName])
+  const curNet = useMemo(() => curProfit - curExpensesTotal, [curProfit, curExpensesTotal])
+  const prvNet = useMemo(() => prvProfit - prvExpensesTotal, [prvProfit, prvExpensesTotal])
   const missingCostCount = useMemo(() => {
     const missing = new Set<string>()
     for (const o of curOrders) {
@@ -622,7 +577,7 @@ export default function DashboardPage() {
       {error && <ErrorBanner message={error} />}
 
       {/* KPI row */}
-      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <KpiCard
           label="Revenue"
           value={fmtMoney(curRevenue)}
@@ -630,7 +585,7 @@ export default function DashboardPage() {
           note={PREV_LABEL[dateMode]}
         />
         <KpiCard
-          label="Profit"
+          label="Gross Profit"
           value={fmtMoney(curProfit)}
           trend={fmtPct(curProfit, prvProfit)}
           note={missingCostCount > 0 ? `${missingCostCount} missing cost` : PREV_LABEL[dateMode]}
@@ -639,6 +594,12 @@ export default function DashboardPage() {
           label="Expenses"
           value={fmtMoney(curExpensesTotal)}
           trend={fmtPct(curExpensesTotal, prvExpensesTotal)}
+          note={PREV_LABEL[dateMode]}
+        />
+        <KpiCard
+          label="Net Profit"
+          value={fmtMoney(curNet)}
+          trend={fmtPct(curNet, prvNet)}
           note={PREV_LABEL[dateMode]}
         />
         <KpiCard

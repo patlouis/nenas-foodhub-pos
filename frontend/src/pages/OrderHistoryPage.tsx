@@ -71,17 +71,7 @@ type SortKey = "date" | "cashier" | "total" | "payment"
 type SortDir = "asc" | "desc"
 type DateMode = "all" | "month" | "week" | "day"
 
-// ---- date helpers ----
-function toDateStr(d: Date)  { return d.toLocaleDateString("sv") }           // YYYY-MM-DD
-function toMonthStr(d: Date) { return d.toLocaleDateString("sv").slice(0, 7) } // YYYY-MM
-function toWeekStr(d: Date): string {
-  const t = new Date(d)
-  t.setHours(0, 0, 0, 0)
-  t.setDate(t.getDate() + 3 - ((t.getDay() + 6) % 7)) // nearest Thursday
-  const w1 = new Date(t.getFullYear(), 0, 4)
-  const wn = 1 + Math.round(((t.getTime() - w1.getTime()) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7)
-  return `${t.getFullYear()}-W${String(wn).padStart(2, "0")}`
-}
+import { toDateStr, toMonthStr, toWeekStr } from "../utils/dateHelpers"
 
 function monthRange(s: string): [Date, Date] {
   const [y, m] = s.split("-").map(Number)
