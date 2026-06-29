@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Order, Product, Category, StockAdjustment } from "../types"
+import type { Order, Product, Category, StockAdjustment, Expense } from "../types"
 import { wastageReasonLabel } from "../types"
-import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi } from "../api"
+import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi, expensesApi } from "../api"
 import { ErrorBanner, PageShell } from "../components/ui"
 
 type DateMode = "all" | "day" | "week" | "month"
@@ -83,6 +83,11 @@ function getPrevRange(mode: DateMode, from: Date): [Date, Date] {
 function inRange(o: Order, from: Date, to: Date): boolean {
   if (!o.createdAt) return false
   const d = new Date(o.createdAt)
+  return d >= from && d <= to
+}
+
+function inRangeExpense(e: Expense, from: Date, to: Date): boolean {
+  const d = new Date(e.date)
   return d >= from && d <= to
 }
 
@@ -285,6 +290,7 @@ const inputCls =
 export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [wastageAdjs, setWastageAdjs] = useState<StockAdjustment[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -305,16 +311,18 @@ export default function DashboardPage() {
     ;(async () => {
       try {
         // Analytics need the full history/catalog, not one page of it.
-        const [o, p, c, w] = await Promise.all([
+        const [o, p, c, w, ex] = await Promise.all([
           ordersApi.list({ limit: 1000 }),
           productsApi.list({ limit: 500 }),
           categoriesApi.list(),
           stockAdjustmentsApi.list({ type: "wastage", limit: 1000 }),
+          expensesApi.list({ limit: 1000 }),
         ])
         setOrders(o.data)
         setProducts(p.data)
         setCategories(c)
         setWastageAdjs(w.data)
+        setExpenses(ex.data)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard")
       } finally {
@@ -346,6 +354,19 @@ export default function DashboardPage() {
     () => activeOrders.filter((o) => inRange(o, prvFrom, prvTo)),
     [activeOrders, prvFrom, prvTo],
   )
+
+  const curExpensesTotal = useMemo(() => {
+    const active = expenses.filter((e) => !e.voided)
+    if (dateMode === "all") return active.reduce((s, e) => s + e.amount, 0)
+    return active.filter((e) => inRangeExpense(e, curFrom, curTo)).reduce((s, e) => s + e.amount, 0)
+  }, [expenses, dateMode, curFrom, curTo])
+
+  const prvExpensesTotal = useMemo(() => {
+    if (dateMode === "all") return 0
+    return expenses
+      .filter((e) => !e.voided && inRangeExpense(e, prvFrom, prvTo))
+      .reduce((s, e) => s + e.amount, 0)
+  }, [expenses, dateMode, prvFrom, prvTo])
 
   // KPIs
   const curRevenue   = useMemo(() => curOrders.reduce((s, o) => s + o.total, 0), [curOrders])
@@ -615,9 +636,9 @@ export default function DashboardPage() {
           note={missingCostCount > 0 ? `${missingCostCount} missing cost` : PREV_LABEL[dateMode]}
         />
         <KpiCard
-          label="Orders"
-          value={String(curOrders.length)}
-          trend={fmtPct(curOrders.length, prvOrders.length)}
+          label="Expenses"
+          value={fmtMoney(curExpensesTotal)}
+          trend={fmtPct(curExpensesTotal, prvExpensesTotal)}
           note={PREV_LABEL[dateMode]}
         />
         <KpiCard
