@@ -150,7 +150,7 @@ const NAV_ITEMS: { id: Page; label: string; Icon: () => React.JSX.Element; admin
   { id: "history",    label: "Order History", Icon: HistoryIcon    },
   { id: "categories", label: "Categories",    Icon: CategoriesIcon },
   { id: "inventory",     label: "Inventory",     Icon: InventoryIcon                   },
-  { id: "inventory-log", label: "Inventory Log", Icon: InventoryLogIcon, adminOnly: true },
+  // { id: "inventory-log", label: "Inventory Log", Icon: InventoryLogIcon, adminOnly: true },
   { id: "expenses",      label: "Expenses",       Icon: ExpensesIcon,     adminOnly: true },
   { id: "users",         label: "Users",         Icon: UsersIcon,        adminOnly: true },
 ]
