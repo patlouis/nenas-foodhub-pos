@@ -29,7 +29,7 @@ describe("POST /api/expenses", () => {
     const res = await request(app)
       .post("/api/expenses")
       .set("Authorization", `Bearer ${token}`)
-      .send({ amount: 500, category: "utilities" });
+      .send({ amount: 500, category: "utilities", description: "Monthly bill" });
 
     expect(res.status).toBe(201);
     expect(res.body.amount).toBe(500);
@@ -39,7 +39,16 @@ describe("POST /api/expenses", () => {
     expect(res.body.date).toBeTruthy();
   });
 
-  it("creates an expense with optional description and backdated date", async () => {
+  it("rejects missing description", async () => {
+    const { token } = await loginAs("admin");
+    const res = await request(app)
+      .post("/api/expenses")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ amount: 500, category: "utilities" });
+    expect(res.status).toBe(400);
+  });
+
+  it("creates an expense with description and backdated date", async () => {
     const { token } = await loginAs("admin");
     const res = await request(app)
       .post("/api/expenses")
@@ -74,7 +83,7 @@ describe("POST /api/expenses", () => {
     const res = await request(app)
       .post("/api/expenses")
       .set("Authorization", `Bearer ${token}`)
-      .send({ amount: 500, category: "supplies", qty: 3 });
+      .send({ amount: 500, category: "supplies", description: "Rice sacks", qty: 3 });
 
     expect(res.status).toBe(201);
     expect(res.body.qty).toBe(3);
@@ -85,7 +94,7 @@ describe("POST /api/expenses", () => {
     const res = await request(app)
       .post("/api/expenses")
       .set("Authorization", `Bearer ${token}`)
-      .send({ amount: 200, category: "supplies", qty: 1.5 });
+      .send({ amount: 200, category: "supplies", description: "Cooking oil", qty: 1.5 });
 
     expect(res.status).toBe(201);
     expect(res.body.qty).toBe(1.5);

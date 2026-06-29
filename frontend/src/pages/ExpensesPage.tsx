@@ -166,6 +166,10 @@ export default function ExpensesPage() {
       setAddError("Enter a valid amount greater than 0")
       return
     }
+    if (!addDesc.trim()) {
+      setAddError("Description is required")
+      return
+    }
     const qty = addQty.trim() ? Number(addQty) : undefined
     if (qty !== undefined && (isNaN(qty) || qty < 0.01)) {
       setAddError("Quantity must be at least 0.01")
@@ -177,7 +181,7 @@ export default function ExpensesPage() {
       await expensesApi.create({
         amount,
         category: addCat,
-        description: addDesc.trim() || undefined,
+        description: addDesc.trim(),
         qty,
       })
       setAddOpen(false)
@@ -421,6 +425,16 @@ export default function ExpensesPage() {
             />
           </label>
           <label className={fieldLabelCls}>
+            Description
+            <textarea
+              value={addDesc}
+              onChange={(e) => setAddDesc(e.target.value)}
+              placeholder="e.g. June rent, Meralco bill…"
+              maxLength={200} rows={2}
+              className="resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            />
+          </label>
+          <label className={fieldLabelCls}>
             Qty <span className="text-xs font-normal text-[var(--text)]">(optional)</span>
             <input
               type="number" min="0.01" step="any"
@@ -428,16 +442,6 @@ export default function ExpensesPage() {
               onChange={(e) => setAddQty(e.target.value)}
               placeholder="e.g. 3, 1.5"
               className={inputCls}
-            />
-          </label>
-          <label className={fieldLabelCls}>
-            Description <span className="text-xs font-normal text-[var(--text)]">(optional)</span>
-            <textarea
-              value={addDesc}
-              onChange={(e) => setAddDesc(e.target.value)}
-              placeholder="e.g. June rent, Meralco bill…"
-              maxLength={200} rows={2}
-              className="resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             />
           </label>
           {addError && <ErrorBanner message={addError} />}
