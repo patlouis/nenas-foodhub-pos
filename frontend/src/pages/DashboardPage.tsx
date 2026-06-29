@@ -308,11 +308,12 @@ export default function DashboardPage() {
     [activeOrders, prvFrom, prvTo],
   )
 
-  const curExpensesTotal = useMemo(() => {
+  const curExpenses = useMemo(() => {
     const active = expenses.filter((e) => !e.voided)
-    if (dateMode === "all") return active.reduce((s, e) => s + e.amount, 0)
-    return active.filter((e) => inRangeExpense(e, curFrom, curTo)).reduce((s, e) => s + e.amount, 0)
+    if (dateMode === "all") return active
+    return active.filter((e) => inRangeExpense(e, curFrom, curTo))
   }, [expenses, dateMode, curFrom, curTo])
+  const curExpensesTotal = useMemo(() => curExpenses.reduce((s, e) => s + e.amount, 0), [curExpenses])
 
   const prvExpensesTotal = useMemo(() => {
     if (dateMode === "all") return 0
@@ -591,8 +592,7 @@ export default function DashboardPage() {
         <KpiCard
           label="Expenses"
           value={fmtMoney(curExpensesTotal)}
-          trend={fmtPct(curExpensesTotal, prvExpensesTotal)}
-          note={PREV_LABEL[dateMode]}
+          note={`${curExpenses.length} entr${curExpenses.length === 1 ? "y" : "ies"}`}
         />
         <KpiCard
           label="Items Sold"
