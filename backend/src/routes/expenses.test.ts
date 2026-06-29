@@ -11,7 +11,7 @@ afterAll(disconnectTestDB);
 
 describe("POST /api/expenses", () => {
   it("requires authentication", async () => {
-    const res = await request(app).post("/api/expenses").send({ amount: 100, category: "rent" });
+    const res = await request(app).post("/api/expenses").send({ amount: 100, category: "utilities" });
     expect(res.status).toBe(401);
   });
 
@@ -20,7 +20,7 @@ describe("POST /api/expenses", () => {
     const res = await request(app)
       .post("/api/expenses")
       .set("Authorization", `Bearer ${token}`)
-      .send({ amount: 100, category: "rent" });
+      .send({ amount: 100, category: "utilities" });
     expect(res.status).toBe(403);
   });
 
@@ -29,11 +29,11 @@ describe("POST /api/expenses", () => {
     const res = await request(app)
       .post("/api/expenses")
       .set("Authorization", `Bearer ${token}`)
-      .send({ amount: 500, category: "rent" });
+      .send({ amount: 500, category: "utilities" });
 
     expect(res.status).toBe(201);
     expect(res.body.amount).toBe(500);
-    expect(res.body.category).toBe("rent");
+    expect(res.body.category).toBe("utilities");
     expect(res.body.voided).toBe(false);
     expect(res.body.loggedByName).toBeTruthy();
     expect(res.body.date).toBeTruthy();
@@ -56,7 +56,7 @@ describe("POST /api/expenses", () => {
     const res = await request(app)
       .post("/api/expenses")
       .set("Authorization", `Bearer ${token}`)
-      .send({ amount: 0, category: "rent" });
+      .send({ amount: 0, category: "utilities" });
     expect(res.status).toBe(400);
   });
 
@@ -117,8 +117,8 @@ describe("GET /api/expenses", () => {
   it("returns paginated expenses with totalAmount", async () => {
     const { token, user } = await loginAs("admin");
     await Expense.create([
-      { amount: 100, category: "rent",      date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
-      { amount: 200, category: "utilities", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 100, category: "utilities", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 200, category: "supplies",  date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
     ]);
 
     const res = await request(app).get("/api/expenses").set("Authorization", `Bearer ${token}`);
@@ -132,7 +132,7 @@ describe("GET /api/expenses", () => {
   it("excludes voided expenses from totalAmount", async () => {
     const { token, user } = await loginAs("admin");
     await Expense.create([
-      { amount: 100, category: "rent",     date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 100, category: "utilities",     date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
       { amount: 50,  category: "supplies", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: true  },
     ]);
 
@@ -145,22 +145,22 @@ describe("GET /api/expenses", () => {
   it("filters by category", async () => {
     const { token, user } = await loginAs("admin");
     await Expense.create([
-      { amount: 100, category: "rent",      date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
-      { amount: 200, category: "utilities", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 100, category: "utilities", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 200, category: "supplies",  date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
     ]);
 
-    const res = await request(app).get("/api/expenses?category=rent").set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/api/expenses?category=utilities").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0].category).toBe("rent");
+    expect(res.body.data[0].category).toBe("utilities");
   });
 
   it("filters by date range using the date field", async () => {
     const { token, user } = await loginAs("admin");
     await Expense.create([
-      { amount: 100, category: "rent", date: new Date("2026-01-10T12:00:00Z"), loggedBy: user._id, loggedByName: user.name, voided: false },
-      { amount: 200, category: "rent", date: new Date("2026-03-10T12:00:00Z"), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 100, category: "utilities", date: new Date("2026-01-10T12:00:00Z"), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 200, category: "utilities", date: new Date("2026-03-10T12:00:00Z"), loggedBy: user._id, loggedByName: user.name, voided: false },
     ]);
 
     const res = await request(app)
@@ -175,7 +175,7 @@ describe("GET /api/expenses", () => {
   it("searches by description", async () => {
     const { token, user } = await loginAs("admin");
     await Expense.create([
-      { amount: 100, category: "rent",      description: "June rent",    date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 100, category: "utilities",      description: "June rent",    date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
       { amount: 200, category: "utilities", description: "Meralco bill", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
     ]);
 
@@ -204,7 +204,7 @@ describe("PATCH /api/expenses/:id/void", () => {
   it("voids an expense and records who voided it", async () => {
     const { token, user } = await loginAs("admin");
     const expense = await Expense.create({
-      amount: 100, category: "rent", date: new Date(),
+      amount: 100, category: "utilities", date: new Date(),
       loggedBy: user._id, loggedByName: user.name, voided: false,
     });
 
@@ -221,7 +221,7 @@ describe("PATCH /api/expenses/:id/void", () => {
   it("returns 409 when already voided", async () => {
     const { token, user } = await loginAs("admin");
     const expense = await Expense.create({
-      amount: 100, category: "rent", date: new Date(),
+      amount: 100, category: "utilities", date: new Date(),
       loggedBy: user._id, loggedByName: user.name, voided: true,
     });
 

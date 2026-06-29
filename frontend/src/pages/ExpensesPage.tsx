@@ -50,7 +50,6 @@ function fmtMoney(n: number) {
 }
 
 const BADGE_COLORS: Record<ExpenseCategory, string> = {
-  rent:      "bg-blue-500/10 text-blue-500",
   utilities: "bg-yellow-500/10 text-yellow-600",
   salaries:  "bg-purple-500/10 text-purple-500",
   supplies:  "bg-green-500/10 text-green-600",
@@ -85,7 +84,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [addOpen, setAddOpen] = useState(false)
-  const [addCat, setAddCat] = useState<ExpenseCategory>("rent")
+  const [addCat, setAddCat] = useState<ExpenseCategory>("utilities")
   const [addDesc, setAddDesc] = useState("")
   const [addAmount, setAddAmount] = useState("")
   const [addQty, setAddQty] = useState("")
@@ -153,7 +152,7 @@ export default function ExpensesPage() {
   const isFiltering = search !== "" || categoryFilter !== "" || dateMode !== "all"
 
   function openAdd() {
-    setAddCat("rent")
+    setAddCat("utilities")
     setAddDesc("")
     setAddAmount("")
     setAddQty("")

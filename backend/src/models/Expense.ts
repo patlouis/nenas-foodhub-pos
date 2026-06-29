@@ -1,6 +1,6 @@
 import mongoose, { type Document, type Model } from "mongoose";
 
-export const EXPENSE_CATEGORIES = ["rent", "utilities", "salaries", "supplies", "repairs", "other"] as const;
+export const EXPENSE_CATEGORIES = ["utilities", "salaries", "supplies", "repairs", "other"] as const;
 export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 
 export interface IExpense extends Document {
