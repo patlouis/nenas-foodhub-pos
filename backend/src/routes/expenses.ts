@@ -23,7 +23,7 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
 
     const filter: Record<string, unknown> = {};
     if (category) filter.category = category as ExpenseCategory;
-    if (q) filter.note = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    if (q) filter.description = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
     if (from || to) {
       const range: { $gte?: Date; $lte?: Date } = {};
       if (from) range.$gte = new Date(from);
@@ -49,11 +49,11 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
 
 router.post("/", requireAuth, requireAdmin, validateBody(createExpenseSchema), async (req: Request, res: Response) => {
   try {
-    const { amount, category, note, qty, date } = req.body;
+    const { amount, category, description, qty, date } = req.body;
     const expense = await Expense.create({
       amount,
       category,
-      note: note || undefined,
+      description: description || undefined,
       qty: qty ?? undefined,
       date: date ? new Date(date) : new Date(),
       loggedBy: req.user!.sub,

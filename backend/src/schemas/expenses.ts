@@ -5,7 +5,7 @@ import { EXPENSE_CATEGORIES } from "../models/Expense.js";
 export const createExpenseSchema = z.object({
   amount: z.number().positive("Amount must be greater than 0"),
   category: z.enum(EXPENSE_CATEGORIES),
-  note: z.string().trim().max(200, "Note must be 200 characters or fewer").optional(),
+  description: z.string().trim().max(200, "Description must be 200 characters or fewer").optional(),
   qty: z.number().min(0.01, "Quantity must be at least 0.01").optional(),
   date: z.string().optional(),
 });

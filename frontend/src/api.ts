@@ -255,7 +255,7 @@ export const expensesApi = {
       handle<Paginated<Expense> & { totalAmount: number }>
     ),
 
-  create: (data: { amount: number; category: string; note?: string; qty?: number; date?: string }) =>
+  create: (data: { amount: number; category: string; description?: string; qty?: number; date?: string }) =>
     watchedFetch(EXPENSES, {
       method: "POST",
       headers: jsonHeaders(),

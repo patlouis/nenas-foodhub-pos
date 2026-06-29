@@ -14,7 +14,7 @@ export interface Expense {
   _id: string;
   amount: number;
   category: ExpenseCategory;
-  note?: string;
+  description?: string;
   qty?: number;
   date: string;
   loggedByName: string;

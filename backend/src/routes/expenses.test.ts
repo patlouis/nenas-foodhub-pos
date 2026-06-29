@@ -39,15 +39,15 @@ describe("POST /api/expenses", () => {
     expect(res.body.date).toBeTruthy();
   });
 
-  it("creates an expense with optional note and backdated date", async () => {
+  it("creates an expense with optional description and backdated date", async () => {
     const { token } = await loginAs("admin");
     const res = await request(app)
       .post("/api/expenses")
       .set("Authorization", `Bearer ${token}`)
-      .send({ amount: 1200, category: "utilities", note: "Electricity bill", date: "2026-01-15" });
+      .send({ amount: 1200, category: "utilities", description: "Electricity bill", date: "2026-01-15" });
 
     expect(res.status).toBe(201);
-    expect(res.body.note).toBe("Electricity bill");
+    expect(res.body.description).toBe("Electricity bill");
     expect(new Date(res.body.date).toISOString().startsWith("2026-01-15")).toBe(true);
   });
 
@@ -172,18 +172,18 @@ describe("GET /api/expenses", () => {
     expect(res.body.data[0].amount).toBe(100);
   });
 
-  it("searches by note", async () => {
+  it("searches by description", async () => {
     const { token, user } = await loginAs("admin");
     await Expense.create([
-      { amount: 100, category: "rent",      note: "June rent",    date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
-      { amount: 200, category: "utilities", note: "Meralco bill", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 100, category: "rent",      description: "June rent",    date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
+      { amount: 200, category: "utilities", description: "Meralco bill", date: new Date(), loggedBy: user._id, loggedByName: user.name, voided: false },
     ]);
 
     const res = await request(app).get("/api/expenses?q=meralco").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0].note).toBe("Meralco bill");
+    expect(res.body.data[0].description).toBe("Meralco bill");
   });
 });
 

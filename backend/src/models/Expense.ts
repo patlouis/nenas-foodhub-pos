@@ -6,7 +6,7 @@ export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 export interface IExpense extends Document {
   amount: number;
   category: ExpenseCategory;
-  note?: string;
+  description?: string;
   qty?: number;
   date: Date;
   loggedBy: mongoose.Types.ObjectId;
@@ -23,7 +23,7 @@ const expenseSchema = new mongoose.Schema<IExpense>(
   {
     amount: { type: Number, required: true, min: 0.01 },
     category: { type: String, enum: EXPENSE_CATEGORIES, required: true },
-    note: { type: String, maxlength: 200 },
+    description: { type: String, maxlength: 200 },
     qty: { type: Number, min: 0.01 },
     date: { type: Date, required: true },
     loggedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },

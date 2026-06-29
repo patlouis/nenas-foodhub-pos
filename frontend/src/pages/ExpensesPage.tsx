@@ -86,7 +86,7 @@ export default function ExpensesPage() {
 
   const [addOpen, setAddOpen] = useState(false)
   const [addCat, setAddCat] = useState<ExpenseCategory>("rent")
-  const [addNote, setAddNote] = useState("")
+  const [addDesc, setAddDesc] = useState("")
   const [addAmount, setAddAmount] = useState("")
   const [addQty, setAddQty] = useState("")
   const [addError, setAddError] = useState<string | null>(null)
@@ -154,7 +154,7 @@ export default function ExpensesPage() {
 
   function openAdd() {
     setAddCat("rent")
-    setAddNote("")
+    setAddDesc("")
     setAddAmount("")
     setAddQty("")
     setAddError(null)
@@ -178,7 +178,7 @@ export default function ExpensesPage() {
       await expensesApi.create({
         amount,
         category: addCat,
-        note: addNote.trim() || undefined,
+        description: addDesc.trim() || undefined,
         qty,
       })
       setAddOpen(false)
@@ -230,7 +230,7 @@ export default function ExpensesPage() {
       ) : (
         <>
           <Toolbar count={`${total} record${total === 1 ? "" : "s"}`}>
-            <SearchBox value={search} onChange={(v) => setSearch(v)} placeholder="Search note…" />
+            <SearchBox value={search} onChange={(v) => setSearch(v)} placeholder="Search description…" />
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex gap-1">
                 {(["all", "day", "week", "month"] as DateMode[]).map((m) => (
@@ -307,7 +307,7 @@ export default function ExpensesPage() {
                           )}
                         </p>
                         <p className="mt-0.5 whitespace-nowrap text-xs text-[var(--text)]">{fmtDate(exp.date)}</p>
-                        {exp.note && <p className="mt-0.5 text-xs text-[var(--text)]">{exp.note}</p>}
+                        {exp.description && <p className="mt-0.5 text-xs text-[var(--text)]">{exp.description}</p>}
                         {exp.qty !== undefined && <p className="mt-0.5 text-xs text-[var(--text)]">Qty: {exp.qty}</p>}
                       </div>
                       <CategoryBadge category={exp.category} />
@@ -339,7 +339,7 @@ export default function ExpensesPage() {
                     <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
                       <SortTh label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="w-48" />
                       <SortTh label="Category" col="category" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Note</th>
+                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Description</th>
                       <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Qty</th>
                       <SortTh label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
                       <th className="w-16 px-4 py-3" />
@@ -364,7 +364,7 @@ export default function ExpensesPage() {
                         </td>
                         <td className="px-4 py-3 text-[var(--text)]">
                           <span className="flex items-center gap-1.5">
-                            {exp.note ?? "—"}
+                            {exp.description ?? "—"}
                             {exp.voided && (
                               <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
                                 Voided
@@ -439,10 +439,10 @@ export default function ExpensesPage() {
             />
           </label>
           <label className={fieldLabelCls}>
-            Note <span className="text-xs font-normal text-[var(--text)]">(optional)</span>
+            Description <span className="text-xs font-normal text-[var(--text)]">(optional)</span>
             <textarea
-              value={addNote}
-              onChange={(e) => setAddNote(e.target.value)}
+              value={addDesc}
+              onChange={(e) => setAddDesc(e.target.value)}
               placeholder="e.g. June rent, Meralco bill…"
               maxLength={200} rows={2}
               className="resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
