@@ -339,8 +339,8 @@ export default function ExpensesPage() {
                     <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
                       <SortTh label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="w-48" />
                       <SortTh label="Category" col="category" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Qty</th>
                       <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Note</th>
+                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Qty</th>
                       <SortTh label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
                       <th className="w-16 px-4 py-3" />
                     </tr>
@@ -353,7 +353,7 @@ export default function ExpensesPage() {
                       >
                         <td className="whitespace-nowrap px-4 py-3 text-[var(--text)]">{fmtDate(exp.date)}</td>
                         <td className="px-4 py-3">
-                          <div className="flex flex-col gap-0.5">
+                          <div className="flex flex-col items-start gap-0.5">
                             <CategoryBadge category={exp.category} />
                             {exp.voided && exp.voidedByName && (
                               <span className="text-xs text-red-500">
@@ -361,9 +361,6 @@ export default function ExpensesPage() {
                               </span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 tabular-nums text-[var(--text)]">
-                          {exp.qty ?? "—"}
                         </td>
                         <td className="px-4 py-3 text-[var(--text)]">
                           <span className="flex items-center gap-1.5">
@@ -374,6 +371,9 @@ export default function ExpensesPage() {
                               </span>
                             )}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 tabular-nums text-[var(--text)]">
+                          {exp.qty ?? "—"}
                         </td>
                         <td className={`px-4 py-3 text-right tabular-nums font-medium text-[var(--text-h)] ${exp.voided ? "line-through" : ""}`}>
                           {fmtMoney(exp.amount)}
