@@ -1,0 +1,21 @@
+import { z } from "zod";
+import { paginationQuerySchema } from "./pagination.js";
+import { EXPENSE_CATEGORIES } from "../models/Expense.js";
+
+export const createExpenseSchema = z.object({
+  amount: z.number().positive("Amount must be greater than 0"),
+  category: z.enum(EXPENSE_CATEGORIES),
+  note: z.string().trim().max(200, "Note must be 200 characters or fewer").optional(),
+  date: z.string().optional(),
+});
+
+const SORT_KEYS = ["date", "amount", "category", "createdAt"] as const;
+
+export const listExpensesQuerySchema = paginationQuerySchema(1000).extend({
+  category: z.enum(EXPENSE_CATEGORIES).optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  q: z.string().optional(),
+  sortKey: z.enum(SORT_KEYS).optional().default("date"),
+  sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
+});
