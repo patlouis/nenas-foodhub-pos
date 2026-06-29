@@ -315,12 +315,6 @@ export default function DashboardPage() {
   }, [expenses, dateMode, curFrom, curTo])
   const curExpensesTotal = useMemo(() => curExpenses.reduce((s, e) => s + e.amount, 0), [curExpenses])
 
-  const prvExpensesTotal = useMemo(() => {
-    if (dateMode === "all") return 0
-    return expenses
-      .filter((e) => !e.voided && inRangeExpense(e, prvFrom, prvTo))
-      .reduce((s, e) => s + e.amount, 0)
-  }, [expenses, dateMode, prvFrom, prvTo])
 
   // KPIs
   const curRevenue   = useMemo(() => curOrders.reduce((s, o) => s + o.total, 0), [curOrders])
