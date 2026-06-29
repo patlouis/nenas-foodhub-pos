@@ -89,7 +89,6 @@ export default function ExpensesPage() {
   const [addNote, setAddNote] = useState("")
   const [addAmount, setAddAmount] = useState("")
   const [addQty, setAddQty] = useState("")
-  const [addDate, setAddDate] = useState(() => toDateStr(new Date()))
   const [addError, setAddError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
 
@@ -158,7 +157,6 @@ export default function ExpensesPage() {
     setAddNote("")
     setAddAmount("")
     setAddQty("")
-    setAddDate(toDateStr(new Date()))
     setAddError(null)
     setAddOpen(true)
   }
@@ -182,7 +180,6 @@ export default function ExpensesPage() {
         category: addCat,
         note: addNote.trim() || undefined,
         qty,
-        date: addDate || undefined,
       })
       setAddOpen(false)
       load()
@@ -438,14 +435,6 @@ export default function ExpensesPage() {
               value={addQty}
               onChange={(e) => setAddQty(e.target.value)}
               placeholder="e.g. 3, 1.5"
-              className={inputCls}
-            />
-          </label>
-          <label className={fieldLabelCls}>
-            Date
-            <input
-              type="date" value={addDate} max={toDateStr(new Date())}
-              onChange={(e) => setAddDate(e.target.value)}
               className={inputCls}
             />
           </label>
