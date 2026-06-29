@@ -358,8 +358,6 @@ export default function DashboardPage() {
     }, 0)
   const curProfit = useMemo(() => calcProfit(curOrders), [curOrders, costByName])
   const prvProfit = useMemo(() => calcProfit(prvOrders), [prvOrders, costByName])
-  const curNet = useMemo(() => curProfit - curExpensesTotal, [curProfit, curExpensesTotal])
-  const prvNet = useMemo(() => prvProfit - prvExpensesTotal, [prvProfit, prvExpensesTotal])
   const missingCostCount = useMemo(() => {
     const missing = new Set<string>()
     for (const o of curOrders) {
@@ -577,7 +575,7 @@ export default function DashboardPage() {
       {error && <ErrorBanner message={error} />}
 
       {/* KPI row */}
-      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-4">
         <KpiCard
           label="Revenue"
           value={fmtMoney(curRevenue)}
@@ -585,7 +583,7 @@ export default function DashboardPage() {
           note={PREV_LABEL[dateMode]}
         />
         <KpiCard
-          label="Gross Profit"
+          label="Profit"
           value={fmtMoney(curProfit)}
           trend={fmtPct(curProfit, prvProfit)}
           note={missingCostCount > 0 ? `${missingCostCount} missing cost` : PREV_LABEL[dateMode]}
@@ -594,12 +592,6 @@ export default function DashboardPage() {
           label="Expenses"
           value={fmtMoney(curExpensesTotal)}
           trend={fmtPct(curExpensesTotal, prvExpensesTotal)}
-          note={PREV_LABEL[dateMode]}
-        />
-        <KpiCard
-          label="Net Profit"
-          value={fmtMoney(curNet)}
-          trend={fmtPct(curNet, prvNet)}
           note={PREV_LABEL[dateMode]}
         />
         <KpiCard
