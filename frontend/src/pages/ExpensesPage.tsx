@@ -88,6 +88,7 @@ export default function ExpensesPage() {
   const [addCat, setAddCat] = useState<ExpenseCategory>("rent")
   const [addNote, setAddNote] = useState("")
   const [addAmount, setAddAmount] = useState("")
+  const [addQty, setAddQty] = useState("")
   const [addDate, setAddDate] = useState(() => toDateStr(new Date()))
   const [addError, setAddError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -156,6 +157,7 @@ export default function ExpensesPage() {
     setAddCat("rent")
     setAddNote("")
     setAddAmount("")
+    setAddQty("")
     setAddDate(toDateStr(new Date()))
     setAddError(null)
     setAddOpen(true)
@@ -167,6 +169,11 @@ export default function ExpensesPage() {
       setAddError("Enter a valid amount greater than 0")
       return
     }
+    const qty = addQty.trim() ? Number(addQty) : undefined
+    if (qty !== undefined && (isNaN(qty) || qty < 0.01)) {
+      setAddError("Quantity must be at least 0.01")
+      return
+    }
     setAdding(true)
     setAddError(null)
     try {
@@ -174,6 +181,7 @@ export default function ExpensesPage() {
         amount,
         category: addCat,
         note: addNote.trim() || undefined,
+        qty,
         date: addDate || undefined,
       })
       setAddOpen(false)
@@ -303,6 +311,7 @@ export default function ExpensesPage() {
                         </p>
                         <p className="mt-0.5 whitespace-nowrap text-xs text-[var(--text)]">{fmtDate(exp.date)}</p>
                         {exp.note && <p className="mt-0.5 text-xs text-[var(--text)]">{exp.note}</p>}
+                        {exp.qty !== undefined && <p className="mt-0.5 text-xs text-[var(--text)]">Qty: {exp.qty}</p>}
                       </div>
                       <CategoryBadge category={exp.category} />
                     </div>
@@ -333,6 +342,7 @@ export default function ExpensesPage() {
                     <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
                       <SortTh label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="w-48" />
                       <SortTh label="Category" col="category" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Qty</th>
                       <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Note</th>
                       <SortTh label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
                       <th className="w-16 px-4 py-3" />
@@ -354,6 +364,9 @@ export default function ExpensesPage() {
                               </span>
                             )}
                           </div>
+                        </td>
+                        <td className="px-4 py-3 tabular-nums text-[var(--text)]">
+                          {exp.qty ?? "—"}
                         </td>
                         <td className="px-4 py-3 text-[var(--text)]">
                           <span className="flex items-center gap-1.5">
@@ -415,6 +428,16 @@ export default function ExpensesPage() {
               value={addAmount}
               onChange={(e) => setAddAmount(e.target.value)}
               placeholder="0.00"
+              className={inputCls}
+            />
+          </label>
+          <label className={fieldLabelCls}>
+            Qty <span className="text-xs font-normal text-[var(--text)]">(optional)</span>
+            <input
+              type="number" min="0.01" step="any"
+              value={addQty}
+              onChange={(e) => setAddQty(e.target.value)}
+              placeholder="e.g. 3, 1.5"
               className={inputCls}
             />
           </label>

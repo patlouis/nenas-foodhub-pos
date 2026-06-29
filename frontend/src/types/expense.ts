@@ -15,6 +15,7 @@ export interface Expense {
   amount: number;
   category: ExpenseCategory;
   note?: string;
+  qty?: number;
   date: string;
   loggedByName: string;
   voided: boolean;
