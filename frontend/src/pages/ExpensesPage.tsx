@@ -352,24 +352,17 @@ export default function ExpensesPage() {
                       >
                         <td className="whitespace-nowrap px-4 py-3 text-[var(--text)]">{fmtDate(exp.date)}</td>
                         <td className="px-4 py-3">
-                          <div className="flex flex-col items-start gap-0.5">
-                            <CategoryBadge category={exp.category} />
-                            {exp.voided && exp.voidedByName && (
+                          <CategoryBadge category={exp.category} />
+                        </td>
+                        <td className="px-4 py-3 text-[var(--text)]">
+                          <div className="flex flex-col gap-0.5">
+                            <span>{exp.description ?? "—"}</span>
+                            {exp.voided && (
                               <span className="text-xs text-red-500">
-                                Voided by {exp.voidedByName}{exp.voidedAt ? ` · ${fmtDate(exp.voidedAt)}` : ""}
+                                Voided{exp.voidedByName ? ` by ${exp.voidedByName}` : ""}{exp.voidedAt ? ` · ${fmtDate(exp.voidedAt)}` : ""}
                               </span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--text)]">
-                          <span className="flex items-center gap-1.5">
-                            {exp.description ?? "—"}
-                            {exp.voided && (
-                              <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
-                                Voided
-                              </span>
-                            )}
-                          </span>
                         </td>
                         <td className="px-4 py-3 tabular-nums text-[var(--text)]">
                           {exp.qty ?? "—"}
