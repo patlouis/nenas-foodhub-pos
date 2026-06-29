@@ -63,6 +63,7 @@ router.patch("/:id/void", requireAuth, requireAdmin, async (req: Request, res: R
   }
   const adj = await StockAdjustment.findById(req.params.id);
   if (!adj) return res.status(404).json({ error: "Not found" });
+  if (adj.type === "receiving") return res.status(409).json({ error: "Receiving entries cannot be voided — log a wastage to correct stock instead" });
   if (adj.voided) return res.status(409).json({ error: "Already voided" });
 
   const productExists = await Product.exists({ _id: adj.product });

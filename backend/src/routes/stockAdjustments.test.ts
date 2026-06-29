@@ -117,7 +117,7 @@ describe("PATCH /api/stock-adjustments/:id/void", () => {
     expect(updated!.stock).toBe(20); // restored
   });
 
-  it("voids a receiving and decrements stock", async () => {
+  it("rejects voiding a receiving", async () => {
     const { token, user } = await loginAs("admin");
     const product = await makeProduct();
     const adj = await StockAdjustment.create({
@@ -125,16 +125,13 @@ describe("PATCH /api/stock-adjustments/:id/void", () => {
       type: "receiving", quantity: 5, costPrice: 40,
       adjustedBy: user._id, adjustedByName: user.name, voided: false,
     });
-    await Product.updateOne({ _id: product._id }, { $inc: { stock: 5 } });
 
     const res = await request(app)
       .patch(`/api/stock-adjustments/${adj._id}/void`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.voided).toBe(true);
-    const updated = await Product.findById(product._id);
-    expect(updated!.stock).toBe(20); // restored
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/cannot be voided/i);
   });
 
   it("returns 409 when already voided", async () => {
