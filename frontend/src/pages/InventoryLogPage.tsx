@@ -282,7 +282,7 @@ export default function InventoryLogPage() {
                           {adj.costPrice != null ? fmtMoney(adj.costPrice * adj.quantity) : "—"}
                         </span>
                       </div>
-                      {!adj.voided && adj.type === "wastage" && (
+                      {!adj.voided && (
                         <button
                           onClick={() => { setVoidTarget(adj); setVoidError(null) }}
                           title="Void adjustment"
@@ -354,7 +354,7 @@ export default function InventoryLogPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
-                            {!adj.voided && adj.type === "wastage" && (
+                            {!adj.voided && (
                               <button
                                 onClick={() => { setVoidTarget(adj); setVoidError(null) }}
                                 title="Void adjustment"
