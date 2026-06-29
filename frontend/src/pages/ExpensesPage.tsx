@@ -415,16 +415,6 @@ export default function ExpensesPage() {
             </select>
           </label>
           <label className={fieldLabelCls}>
-            Amount (₱)
-            <input
-              type="number" min="0.01" step="0.01"
-              value={addAmount}
-              onChange={(e) => setAddAmount(e.target.value)}
-              placeholder="0.00"
-              className={inputCls}
-            />
-          </label>
-          <label className={fieldLabelCls}>
             Description
             <textarea
               value={addDesc}
@@ -432,6 +422,16 @@ export default function ExpensesPage() {
               placeholder="e.g. June rent, Meralco bill…"
               maxLength={200} rows={2}
               className="resize-none rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            />
+          </label>
+          <label className={fieldLabelCls}>
+            Amount (₱)
+            <input
+              type="number" min="0.01" step="0.01"
+              value={addAmount}
+              onChange={(e) => setAddAmount(e.target.value)}
+              placeholder="0.00"
+              className={inputCls}
             />
           </label>
           <label className={fieldLabelCls}>
