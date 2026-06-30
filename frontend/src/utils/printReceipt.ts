@@ -106,15 +106,15 @@ export function printReceipt(order: Order) {
 
   document.body.appendChild(el)
 
-  // Hide the React app so only the receipt shows in the print capture
+  // Hide the React app so only the receipt is visible when the print service captures the page.
+  // Uses !important and a 200ms delay so the browser has time to visually repaint before printing.
   const appRoot = document.getElementById("root")
-  if (appRoot) appRoot.style.display = "none"
+  if (appRoot) appRoot.style.setProperty("display", "none", "important")
 
   window.addEventListener("afterprint", () => {
-    if (appRoot) appRoot.style.display = ""
+    if (appRoot) appRoot.style.removeProperty("display")
     el.remove()
   }, { once: true })
 
-  // Two rAF calls ensure the DOM has painted before the print dialog opens
-  requestAnimationFrame(() => requestAnimationFrame(() => window.print()))
+  setTimeout(() => window.print(), 200)
 }
