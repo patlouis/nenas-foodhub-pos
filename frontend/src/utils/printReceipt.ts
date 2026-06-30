@@ -81,17 +81,23 @@ export function printReceipt(order: Order, storeName = "YOUR STORE") {
 </body>
 </html>`
 
-  const win = window.open("", "_blank", "width=320,height=600")
-  if (!win) {
-    // Popup was blocked — fall back to a dedicated print page
-    const blob = new Blob([html], { type: "text/html" })
-    const url = URL.createObjectURL(blob)
-    window.open(url, "_blank")
-    return
-  }
-  win.document.write(html)
-  win.document.close()
-  win.focus()
-  // Small delay lets the browser finish rendering before print dialog opens
-  setTimeout(() => { win.print(); win.close() }, 300)
+  // Hidden iframe keeps the print dialog in the current tab (required on Android Chrome —
+  // window.open + print() in a popup fails with "problem printing the page").
+  const iframe = document.createElement("iframe")
+  iframe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;"
+  document.body.appendChild(iframe)
+
+  const doc = iframe.contentDocument ?? iframe.contentWindow?.document
+  if (!doc) { document.body.removeChild(iframe); return }
+
+  doc.open()
+  doc.write(html)
+  doc.close()
+
+  iframe.contentWindow?.focus()
+  // Small delay lets the browser finish rendering before the print dialog opens
+  setTimeout(() => {
+    iframe.contentWindow?.print()
+    setTimeout(() => document.body.removeChild(iframe), 500)
+  }, 300)
 }

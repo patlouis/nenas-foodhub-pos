@@ -67,6 +67,17 @@ function InventoryIcon() {
 }
 
 
+function InventoryLogIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="13" y2="16" />
+    </svg>
+  )
+}
+
 function ExpensesIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -140,7 +151,7 @@ const NAV_ITEMS: { id: Page; label: string; Icon: () => React.JSX.Element; admin
   { id: "history",    label: "Order History", Icon: HistoryIcon    },
   { id: "categories", label: "Categories",    Icon: CategoriesIcon },
   { id: "inventory",     label: "Inventory",     Icon: InventoryIcon                   },
-  // { id: "inventory-log", label: "Inventory Log", Icon: InventoryLogIcon, adminOnly: true },
+  { id: "inventory-log", label: "Inventory Log", Icon: InventoryLogIcon, adminOnly: true },
   { id: "expenses",      label: "Expenses",       Icon: ExpensesIcon,     adminOnly: true },
   { id: "users",         label: "Users",         Icon: UsersIcon,        adminOnly: true },
 ]
