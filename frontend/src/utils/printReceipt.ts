@@ -1,5 +1,9 @@
 import type { Order } from "../types"
 
+const STORE_NAME = "NENAS FOODHUB"
+const STORE_ADDRESS_1 = "Purok 1 Barangay Maburak"
+const STORE_ADDRESS_2 = "Gapan City"
+
 function formatDateTime(iso?: string) {
   if (!iso) return "—"
   return new Date(iso).toLocaleString("en-PH", {
@@ -8,82 +12,109 @@ function formatDateTime(iso?: string) {
   })
 }
 
-export function printReceipt(order: Order, storeName = "YOUR STORE") {
+function line(char = "-", len = 32) {
+  return `<div style="letter-spacing:1px">${char.repeat(len)}</div>`
+}
+
+export function printReceipt(order: Order) {
   const orderNum = order.orderNumber != null
     ? `#${String(order.orderNumber).padStart(4, "0")}`
     : `#${order._id.slice(-6).toUpperCase()}`
 
+  const isStaffMeal = order.orderType === "staff_meal"
+  const paymentLabel = order.paymentMethod === "gcash" ? "GCash" : "Cash"
+
   const itemRows = order.items.map((item) => {
     const lineTotal = (item.lineTotal ?? item.price * item.quantity).toFixed(2)
+    const name = item.name.length > 18 ? item.name.slice(0, 17) + "…" : item.name
     return `
-      <tr><td colspan="2" style="padding-top:3px">${item.name}</td></tr>
-      <tr>
-        <td style="padding-left:8px;font-size:10px;color:#555">${item.quantity} × ₱${item.price.toFixed(2)}</td>
-        <td style="text-align:right">₱${lineTotal}</td>
-      </tr>`
+      <div style="display:flex;justify-content:space-between;gap:4px;padding:2px 0 0">
+        <span style="flex:1">${name}</span>
+        <span style="white-space:nowrap;font-weight:600">₱${lineTotal}</span>
+      </div>
+      <div style="font-size:10px;color:#444;padding-bottom:3px">
+        &nbsp;&nbsp;${item.quantity} × ₱${item.price.toFixed(2)}
+      </div>`
   }).join("")
-
-  const paymentLabel = order.paymentMethod === "gcash" ? "GCash" : "Cash"
-  const isStaffMeal = order.orderType === "staff_meal"
 
   const existing = document.getElementById("pos-receipt")
   if (existing) existing.remove()
 
   const el = document.createElement("div")
   el.id = "pos-receipt"
-  // All styles are inline so they work regardless of whether PrintHand processes
-  // external/media-query CSS. visibility:visible on this element overrides the
-  // visibility:hidden we set on documentElement, making only the receipt render.
   el.style.cssText = [
-    "visibility:visible",
+    "display:block",
     "position:fixed",
-    "top:0", "left:0",
-    "width:58mm",
+    "inset:0",
     "background:#fff",
     "color:#000",
-    "padding:4mm 3mm 8mm",
+    "padding:10px 12px",
     "font-family:'Courier New',Courier,monospace",
-    "font-size:11px",
-    "line-height:1.4",
-    "z-index:99999",
+    "font-size:12px",
+    "line-height:1.5",
+    "z-index:999999",
     "box-sizing:border-box",
+    "overflow:auto",
   ].join(";")
 
   el.innerHTML = `
-    <p style="text-align:center;font-size:15px;font-weight:bold;margin:0 0 2px">${storeName}</p>
-    <p style="text-align:center;font-size:10px;margin:0">Order ${orderNum}</p>
-    <hr style="border:none;border-top:1px dashed #000;margin:4px 0">
-    <div style="font-size:10px;line-height:1.6">
-      <div>${formatDateTime(order.createdAt)}</div>
-      ${order.cashierName ? `<div>Cashier: ${order.cashierName}</div>` : ""}
-      ${order.tableNumber != null ? `<div>Table: ${order.tableNumber}</div>` : ""}
-      ${isStaffMeal
-        ? `<div>Staff meal${order.staffMealRecipient ? ` — ${order.staffMealRecipient}` : ""}</div>`
-        : `<div>Payment: ${paymentLabel}</div>`}
-    </div>
-    <hr style="border:none;border-top:1px dashed #000;margin:4px 0">
-    <table style="width:100%;border-collapse:collapse">${itemRows}</table>
-    <hr style="border:none;border-top:1px dashed #000;margin:4px 0">
-    <table style="width:100%;border-collapse:collapse">
-      <tr>
-        <td style="font-weight:bold;font-size:13px;padding-top:4px">TOTAL</td>
-        <td style="font-weight:bold;font-size:13px;padding-top:4px;text-align:right">
-          ${isStaffMeal ? "₱0.00 (staff)" : `₱${order.total.toFixed(2)}`}
-        </td>
-      </tr>
-    </table>
-    <p style="text-align:center;font-size:10px;margin-top:8px;color:#444">— Thank you! —</p>`
+    <div style="max-width:280px;margin:0 auto">
+
+      <div style="text-align:center;margin-bottom:6px">
+        <div style="font-size:18px;font-weight:bold;letter-spacing:2px">${STORE_NAME}</div>
+        <div style="font-size:10px;margin-top:2px">${STORE_ADDRESS_1}</div>
+        <div style="font-size:10px">${STORE_ADDRESS_2}</div>
+      </div>
+
+      ${line("=")}
+
+      <div style="font-size:11px;margin:4px 0">
+        <div>Order : ${orderNum}</div>
+        <div>Date  : ${formatDateTime(order.createdAt)}</div>
+        ${order.cashierName ? `<div>Cashier: ${order.cashierName}</div>` : ""}
+        ${order.tableNumber != null ? `<div>Table  : ${order.tableNumber}</div>` : ""}
+        <div>${isStaffMeal
+          ? `Type  : Staff Meal${order.staffMealRecipient ? ` (${order.staffMealRecipient})` : ""}`
+          : `Payment: ${paymentLabel}`}
+        </div>
+      </div>
+
+      ${line()}
+
+      <div style="font-size:11px;margin:4px 0">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;margin-bottom:2px">
+          <span>ITEM</span><span>AMOUNT</span>
+        </div>
+        ${itemRows}
+      </div>
+
+      ${line()}
+
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;margin:4px 0">
+        <span>TOTAL</span>
+        <span>${isStaffMeal ? "₱0.00" : `₱${order.total.toFixed(2)}`}</span>
+      </div>
+
+      ${line("=")}
+
+      <div style="text-align:center;font-size:10px;margin-top:6px">
+        <div>** Thank you for dining! **</div>
+        <div>Please come again.</div>
+      </div>
+
+    </div>`
 
   document.body.appendChild(el)
 
-  // Hide the entire page; visibility:visible on el (a descendant) overrides this,
-  // so only the receipt is visible to the print renderer — no @media print needed.
-  document.documentElement.style.visibility = "hidden"
+  // Hide the React app so only the receipt shows in the print capture
+  const appRoot = document.getElementById("root")
+  if (appRoot) appRoot.style.display = "none"
 
   window.addEventListener("afterprint", () => {
-    document.documentElement.style.visibility = ""
+    if (appRoot) appRoot.style.display = ""
     el.remove()
   }, { once: true })
 
-  window.print()
+  // Two rAF calls ensure the DOM has painted before the print dialog opens
+  requestAnimationFrame(() => requestAnimationFrame(() => window.print()))
 }
