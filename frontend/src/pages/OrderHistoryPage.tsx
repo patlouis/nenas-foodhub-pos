@@ -542,11 +542,7 @@ export default function OrderHistoryPage() {
 
             <div className="flex items-center justify-between">
               <button
-                onClick={() => {
-                  const o = viewTarget
-                  setViewTarget(null)
-                  setTimeout(() => printReceipt(o), 350)
-                }}
+                onClick={() => printReceipt(viewTarget)}
                 className={`${btnOutlineCls} flex items-center gap-2`}
               >
                 <PrinterIcon />
