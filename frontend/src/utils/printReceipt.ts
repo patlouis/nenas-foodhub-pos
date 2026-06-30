@@ -18,86 +18,81 @@ export function printReceipt(order: Order, storeName = "YOUR STORE") {
   const itemRows = order.items.map((item) => {
     const lineTotal = (item.lineTotal ?? item.price * item.quantity).toFixed(2)
     return `
-      <tr><td colspan="2" class="item-name">${item.name}</td></tr>
+      <tr><td colspan="2" class="r-item-name">${item.name}</td></tr>
       <tr>
-        <td class="item-sub">${item.quantity} × ₱${item.price.toFixed(2)}</td>
-        <td class="right">₱${lineTotal}</td>
+        <td class="r-item-sub">${item.quantity} × ₱${item.price.toFixed(2)}</td>
+        <td style="text-align:right">₱${lineTotal}</td>
       </tr>`
   }).join("")
 
   const paymentLabel = order.paymentMethod === "gcash" ? "GCash" : "Cash"
   const isStaffMeal = order.orderType === "staff_meal"
 
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Receipt ${orderNum}</title>
-<style>
-  @page { margin: 0; size: 58mm auto; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 11px;
-    width: 58mm;
-    padding: 4mm 3mm 8mm;
-    color: #000;
+  const receiptContent = `
+    <p class="r-center r-store">${storeName}</p>
+    <p class="r-center r-meta">Order ${orderNum}</p>
+    <hr class="r-divider">
+    <div class="r-meta">
+      <div>${formatDateTime(order.createdAt)}</div>
+      ${order.cashierName ? `<div>Cashier: ${order.cashierName}</div>` : ""}
+      ${order.tableNumber != null ? `<div>Table: ${order.tableNumber}</div>` : ""}
+      ${isStaffMeal
+        ? `<div>Staff meal${order.staffMealRecipient ? ` — ${order.staffMealRecipient}` : ""}</div>`
+        : `<div>Payment: ${paymentLabel}</div>`}
+    </div>
+    <hr class="r-divider">
+    <table class="r-table">${itemRows}</table>
+    <hr class="r-divider">
+    <table class="r-table">
+      <tr>
+        <td class="r-total-label">TOTAL</td>
+        <td class="r-total-value">${isStaffMeal ? "₱0.00 (staff)" : `₱${order.total.toFixed(2)}`}</td>
+      </tr>
+    </table>
+    <p class="r-center r-meta" style="margin-top:8px">— Thank you! —</p>`
+
+  // Inject receipt directly into the current page and call window.print() — the only
+  // approach that works reliably on Android Chrome (iframes and popups both fail there).
+  let styleEl = document.getElementById("pos-print-style")
+  if (!styleEl) {
+    styleEl = document.createElement("style")
+    styleEl.id = "pos-print-style"
+    styleEl.textContent = `
+      @page { margin: 0; size: 58mm auto; }
+      #pos-receipt { display: none; }
+      @media print {
+        body > *:not(#pos-receipt) { display: none !important; }
+        #pos-receipt {
+          display: block !important;
+          font-family: 'Courier New', Courier, monospace;
+          font-size: 11px;
+          width: 58mm;
+          padding: 4mm 3mm 8mm;
+          color: #000;
+        }
+        #pos-receipt .r-center { text-align: center; }
+        #pos-receipt .r-store  { font-size: 15px; font-weight: bold; margin-bottom: 2px; }
+        #pos-receipt .r-divider { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+        #pos-receipt .r-meta { font-size: 10px; line-height: 1.6; }
+        #pos-receipt .r-table { width: 100%; border-collapse: collapse; }
+        #pos-receipt .r-table td { padding: 1px 0; vertical-align: top; line-height: 1.4; }
+        #pos-receipt .r-item-name { padding-top: 3px; }
+        #pos-receipt .r-item-sub  { padding-left: 8px; color: #555; font-size: 10px; }
+        #pos-receipt .r-total-label { font-weight: bold; font-size: 13px; padding-top: 4px; }
+        #pos-receipt .r-total-value { font-weight: bold; font-size: 13px; padding-top: 4px; text-align: right; }
+      }
+    `
+    document.head.appendChild(styleEl)
   }
-  .center { text-align: center; }
-  .right  { text-align: right; }
-  .bold   { font-weight: bold; }
-  .store  { font-size: 15px; font-weight: bold; margin-bottom: 2px; }
-  .divider { border: none; border-top: 1px dashed #000; margin: 4px 0; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; line-height: 1.4; }
-  .item-name { padding-top: 3px; }
-  .item-sub  { padding-left: 8px; color: #555; font-size: 10px; }
-  .meta { font-size: 10px; line-height: 1.6; }
-  .total-label { font-weight: bold; font-size: 13px; padding-top: 4px; }
-  .total-value { font-weight: bold; font-size: 13px; padding-top: 4px; text-align: right; }
-  .footer { text-align: center; font-size: 10px; margin-top: 8px; color: #444; }
-</style>
-</head>
-<body>
-  <p class="center store">${storeName}</p>
-  <p class="center meta">Order ${orderNum}</p>
-  <hr class="divider">
-  <div class="meta">
-    <div>${formatDateTime(order.createdAt)}</div>
-    ${order.cashierName ? `<div>Cashier: ${order.cashierName}</div>` : ""}
-    ${order.tableNumber != null ? `<div>Table: ${order.tableNumber}</div>` : ""}
-    ${isStaffMeal ? `<div>Staff meal${order.staffMealRecipient ? ` — ${order.staffMealRecipient}` : ""}</div>` : `<div>Payment: ${paymentLabel}</div>`}
-  </div>
-  <hr class="divider">
-  <table>${itemRows}</table>
-  <hr class="divider">
-  <table>
-    <tr>
-      <td class="total-label">TOTAL</td>
-      <td class="total-value">${isStaffMeal ? "₱0.00 (staff)" : `₱${order.total.toFixed(2)}`}</td>
-    </tr>
-  </table>
-  <p class="footer">— Thank you! —</p>
-</body>
-</html>`
 
-  // Hidden iframe keeps the print dialog in the current tab (required on Android Chrome —
-  // window.open + print() in a popup fails with "problem printing the page").
-  const iframe = document.createElement("iframe")
-  iframe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;"
-  document.body.appendChild(iframe)
+  const existing = document.getElementById("pos-receipt")
+  if (existing) existing.remove()
 
-  const doc = iframe.contentDocument ?? iframe.contentWindow?.document
-  if (!doc) { document.body.removeChild(iframe); return }
+  const el = document.createElement("div")
+  el.id = "pos-receipt"
+  el.innerHTML = receiptContent
+  document.body.appendChild(el)
 
-  doc.open()
-  doc.write(html)
-  doc.close()
-
-  iframe.contentWindow?.focus()
-  // Small delay lets the browser finish rendering before the print dialog opens
-  setTimeout(() => {
-    iframe.contentWindow?.print()
-    setTimeout(() => document.body.removeChild(iframe), 500)
-  }, 300)
+  window.addEventListener("afterprint", () => el.remove(), { once: true })
+  window.print()
 }
