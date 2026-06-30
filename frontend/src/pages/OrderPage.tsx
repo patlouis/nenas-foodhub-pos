@@ -4,7 +4,8 @@ import { TABLE_KEYS } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
 import { useTableCarts } from "../hooks/useTableCarts"
-import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls } from "../components/ui"
+import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls, PrinterIcon } from "../components/ui"
+import { printReceipt } from "../utils/printReceipt"
 import Modal from "../components/Modal"
 
 function tableLabel(t: TableKey): string {
@@ -85,6 +86,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   const [usersLoaded, setUsersLoaded] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
+  const [lastOrder, setLastOrder] = useState<import("../types").Order | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   // Bumped on every load() call so a slower, older request can't overwrite the
@@ -136,10 +138,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     }
   }, [activeTable])
 
-  // Auto-dismiss the "order placed" toast.
+  // Auto-dismiss the "order placed" toast after 6s (longer to give time to hit Print).
   useEffect(() => {
     if (!success) return
-    const id = setTimeout(() => setSuccess(null), 3000)
+    const id = setTimeout(() => setSuccess(null), 6000)
     return () => clearTimeout(id)
   }, [success])
 
@@ -213,6 +215,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       setPaymentMethod("cash")
       setIsStaffMeal(false)
       setStaffMealRecipient("")
+      setLastOrder(order)
       const num = order.orderNumber != null ? `#${String(order.orderNumber).padStart(4, "0")}` : ""
       setSuccess(isStaffMeal ? `Staff meal ${num} recorded` : `Order ${num} placed — ₱${order.total.toFixed(2)}`)
       await load() // stock changed on the server
@@ -545,14 +548,24 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
       {/* Success toast — floats over the screen, auto-dismisses */}
       {success && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
-          <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] py-2.5 pl-2.5 pr-4 text-sm font-medium text-[var(--text-h)] shadow-[var(--shadow)] animate-[toast-in_200ms_ease-out]">
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+          <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] py-2.5 pl-2.5 pr-3 text-sm font-medium text-[var(--text-h)] shadow-[var(--shadow)] animate-[toast-in_200ms_ease-out]">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </span>
-            {success}
+            <span className="pr-1">{success}</span>
+            {lastOrder && (
+              <button
+                onClick={() => printReceipt(lastOrder)}
+                title="Print receipt"
+                aria-label="Print receipt"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text)] transition hover:bg-[var(--social-bg)] hover:text-[var(--text-h)]"
+              >
+                <PrinterIcon />
+              </button>
+            )}
           </div>
         </div>
       )}

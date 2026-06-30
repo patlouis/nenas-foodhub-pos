@@ -5,9 +5,10 @@ import { useAuth } from "../auth"
 import Modal from "../components/Modal"
 import {
   PageShell, PageHeader, ErrorBanner, Toolbar, SearchBox, TableCard, EmptyState,
-  SortTh, EyeIcon, BanIcon, iconBtnCls, iconBtnDangerCls, btnOutlineCls, btnDangerCls,
+  SortTh, EyeIcon, BanIcon, PrinterIcon, iconBtnCls, iconBtnDangerCls, btnOutlineCls, btnDangerCls,
   PAGE_SIZE, Paginator,
 } from "../components/ui"
+import { printReceipt } from "../utils/printReceipt"
 
 const ITEM_PREVIEW = 3
 
@@ -539,16 +540,23 @@ export default function OrderHistoryPage() {
               </span>
             </div>
 
-            {user?.role === "admin" && viewTarget.status !== "voided" && (
-              <div className="flex justify-end">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => printReceipt(viewTarget)}
+                className={`${btnOutlineCls} flex items-center gap-2`}
+              >
+                <PrinterIcon />
+                Print receipt
+              </button>
+              {user?.role === "admin" && viewTarget.status !== "voided" && (
                 <button
                   onClick={() => { setVoidTarget(viewTarget); setViewTarget(null) }}
                   className={btnDangerCls}
                 >
                   Void order
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </Modal>
