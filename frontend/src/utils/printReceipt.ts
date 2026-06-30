@@ -21,7 +21,6 @@ function esc(s: string) {
   return s.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"))
 }
 
-// Pad a left label and right value onto one WIDTH-char line.
 function row(left: string, right: string) {
   const space = Math.max(1, WIDTH - left.length - right.length)
   return esc(left + " ".repeat(space) + right)
@@ -33,14 +32,13 @@ function center(s: string) {
   return esc(" ".repeat(pad) + s)
 }
 
-export function printReceipt(order: Order) {
+function buildReceiptText(order: Order): string {
   const orderNum = order.orderNumber != null
     ? `#${String(order.orderNumber).padStart(4, "0")}`
     : `#${order._id.slice(-6).toUpperCase()}`
 
   const isStaffMeal = order.orderType === "staff_meal"
   const paymentLabel = order.paymentMethod === "gcash" ? "GCash" : "Cash"
-
   const solid = "=".repeat(WIDTH)
   const dashed = "-".repeat(WIDTH)
 
@@ -62,7 +60,6 @@ export function printReceipt(order: Order) {
   lines.push(row("ITEM", "AMOUNT"))
   for (const item of order.items) {
     const lineTotal = (item.lineTotal ?? item.price * item.quantity).toFixed(2)
-    // Item name on its own line so long names never break the column alignment.
     lines.push(esc(item.name))
     lines.push(row(`  ${item.quantity} x P${item.price.toFixed(2)}`, `P${lineTotal}`))
   }
@@ -72,54 +69,80 @@ export function printReceipt(order: Order) {
   lines.push(center("** Thank you for dining! **"))
   lines.push(center("Please come again."))
 
-  const body = lines.join("\n")
+  return lines.join("\n")
+}
 
-  const doc = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  @page { margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  pre {
-    margin: 0;
-    padding: 6px 4px 24px;
-    color: #000;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 13px;
-    line-height: 1.35;
-    font-weight: 700;
-    white-space: pre;
-    text-align: center;
+export function printReceipt(order: Order) {
+  const text = buildReceiptText(order)
+
+  // Cheap Bluetooth thermal drivers print a screenshot of the LIVE screen, not the
+  // browser's print PDF. So we must make the real page show only the receipt at print
+  // time. We hide the app, render the receipt as a full-screen visible overlay, then
+  // print the main window. Restoring on `afterprint` fires too early (the driver
+  // captures afterwards), so we restore only when focus returns from the print dialog.
+
+  const appRoot = document.getElementById("root")
+
+  // Inject a one-time @page rule so the printed PDF has no page margins.
+  let pageStyle = document.getElementById("pos-print-page-style")
+  if (!pageStyle) {
+    pageStyle = document.createElement("style")
+    pageStyle.id = "pos-print-page-style"
+    pageStyle.textContent = "@page { margin: 0; }"
+    document.head.appendChild(pageStyle)
   }
-</style>
-</head>
-<body><pre>${body}</pre></body>
-</html>`
 
-  // Render into an isolated iframe that contains ONLY the receipt, so the print
-  // service captures the receipt alone — never the surrounding app. Printing the
-  // iframe's own window (not the main window) is what keeps the app out of the output.
-  const old = document.getElementById("pos-receipt-frame")
+  const old = document.getElementById("pos-receipt")
   if (old) old.remove()
 
-  const frame = document.createElement("iframe")
-  frame.id = "pos-receipt-frame"
-  frame.setAttribute("aria-hidden", "true")
-  frame.style.cssText = "position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;"
-  frame.srcdoc = doc
+  const overlay = document.createElement("div")
+  overlay.id = "pos-receipt"
+  overlay.style.cssText = [
+    "position:fixed",
+    "inset:0",
+    "z-index:2147483647",
+    "background:#ffffff",
+    "color:#000000",
+    "margin:0",
+    "display:flex",
+    "justify-content:center",
+    "align-items:flex-start",
+    "overflow:auto",
+  ].join(";")
 
-  frame.onload = () => {
-    const win = frame.contentWindow
-    if (!win) { frame.remove(); return }
-    // Give the layout a beat to settle before invoking print.
-    setTimeout(() => {
-      win.focus()
-      win.print()
-      // Remove the frame once the dialog has been dismissed.
-      setTimeout(() => frame.remove(), 1000)
-    }, 150)
+  const pre = document.createElement("pre")
+  pre.textContent = text
+  pre.style.cssText = [
+    "margin:0",
+    "padding:8px 4px 24px",
+    "font-family:'Courier New',Courier,monospace",
+    "font-size:13px",
+    "line-height:1.35",
+    "font-weight:700",
+    "white-space:pre",
+    "text-align:center",
+    "color:#000000",
+  ].join(";")
+  overlay.appendChild(pre)
+  document.body.appendChild(overlay)
+
+  if (appRoot) appRoot.style.setProperty("display", "none", "important")
+
+  let restored = false
+  const restore = () => {
+    if (restored) return
+    restored = true
+    window.removeEventListener("focus", onFocus)
+    if (appRoot) appRoot.style.removeProperty("display")
+    overlay.remove()
   }
+  // `focus` fires when the user returns to the app after the print dialog closes —
+  // by then the driver has already captured/printed, so it's safe to restore.
+  const onFocus = () => setTimeout(restore, 150)
+  window.addEventListener("focus", onFocus)
+  // Fallback in case `focus` never fires on this device.
+  setTimeout(restore, 15000)
 
-  document.body.appendChild(frame)
+  // Let the overlay paint before opening the print dialog.
+  setTimeout(() => window.print(), 250)
 }
