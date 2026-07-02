@@ -62,11 +62,11 @@ function buildReceiptHtml(order: Order): string {
   const dashed = "-".repeat(WIDTH)
 
   const lines: string[] = []
-  lines.push(bigCentered(STORE_NAME, 24))
+  lines.push(bigCentered(STORE_NAME, 30))
   lines.push(center(STORE_ADDRESS_1))
   lines.push(center(STORE_ADDRESS_2))
   lines.push(solid)
-  lines.push(big(esc(`Order  : ${orderNum}`), 19))
+  lines.push(big(esc(`Order  : ${orderNum}`), 24))
   lines.push(esc(`Date   : ${formatDateTime(order.createdAt)}`))
   if (order.cashierName) lines.push(esc(`Cashier: ${order.cashierName}`))
   if (isStaffMeal) {
@@ -137,7 +137,7 @@ export function printReceipt(order: Order) {
     "margin:0",
     "padding:8px 4px 24px",
     "font-family:Consolas,'Roboto Mono','Courier New',monospace",
-    "font-size:16px",
+    "font-size:20px",
     "line-height:1.4",
     "font-weight:700",
     "white-space:pre",
