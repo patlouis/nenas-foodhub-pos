@@ -59,17 +59,19 @@ function buildReceiptHtml(order: Order): string {
   const dashed = "-".repeat(WIDTH)
 
   const lines: string[] = []
-  lines.push(wrap(STORE_NAME, { center: true, px: 20 }))
+  lines.push(wrap(STORE_NAME, { center: true, px: 18 }))
   lines.push(wrap(STORE_ADDRESS_1, { center: true }))
   lines.push(wrap(STORE_ADDRESS_2, { center: true }))
   lines.push(solid)
   lines.push(big(esc(`Order  : ${orderNum}`), 17))
-  lines.push(esc(`Date   : ${formatDateTime(order.createdAt)}`))
-  if (order.cashierName) lines.push(esc(`Cashier: ${order.cashierName}`))
+  // wrap(), not esc() — the date/time line alone runs ~30 chars, well past the 18-column
+  // budget, so it must be able to wrap onto a second line instead of getting clipped.
+  lines.push(wrap(`Date   : ${formatDateTime(order.createdAt)}`))
+  if (order.cashierName) lines.push(wrap(`Cashier: ${order.cashierName}`))
   if (isStaffMeal) {
-    lines.push(esc(`Type   : Staff Meal${order.staffMealRecipient ? ` (${order.staffMealRecipient})` : ""}`))
+    lines.push(wrap(`Type   : Staff Meal${order.staffMealRecipient ? ` (${order.staffMealRecipient})` : ""}`))
   } else {
-    lines.push(esc(`Payment: ${paymentLabel}`))
+    lines.push(wrap(`Payment: ${paymentLabel}`))
   }
   lines.push(dashed)
   lines.push(row("ITEM", "AMOUNT"))
