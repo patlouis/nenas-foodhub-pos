@@ -217,7 +217,7 @@ export default function OrderHistoryPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Order History" />
+      <PageHeader title="History" />
 
       {error && <ErrorBanner message={error} />}
 

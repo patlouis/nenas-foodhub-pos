@@ -12,6 +12,7 @@ function tableLabel(t: TableKey): string {
   return t === "order" ? "Counter" : `Table ${t}`
 }
 
+// h-10/w-10 (40px) — a touch-friendly size that still keeps cart rows compact.
 const qtyBtnCls =
   "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-h)] transition hover:bg-[var(--social-bg)] disabled:cursor-not-allowed disabled:opacity-40"
 
@@ -88,6 +89,11 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   const [success, setSuccess] = useState<string | null>(null)
   const [lastOrder, setLastOrder] = useState<import("../types").Order | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+
+  // Tracks the most recently tapped product so its cart-count badge can replay
+  // a pop animation — gives instant tactile feedback on a tablet with no hover state.
+  const [justAdded, setJustAdded] = useState<{ id: string; tick: number } | null>(null)
+  const addTick = useRef(0)
 
   // Bumped on every load() call so a slower, older request can't overwrite the
   // results of a newer one (e.g. navigating away and back quickly).
@@ -188,13 +194,81 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     [cart]
   )
 
+  // When browsing "All" with no search active, split the menu into per-category
+  // sections so staff can scan straight to the right zone instead of one long grid.
+  // Filtering to a single category or searching shows a flat grid instead, since
+  // grouping adds no value once the list is already narrowed down.
+  const groupedProducts = useMemo(() => {
+    if (category !== "" || query.trim() !== "") return null
+    const byCat = new Map<string, Product[]>()
+    for (const p of visibleProducts) {
+      const key = p.category ?? ""
+      if (!byCat.has(key)) byCat.set(key, [])
+      byCat.get(key)!.push(p)
+    }
+    const catOrder = new Map(categories.map((c) => [c._id, c.order ?? 0]))
+    const catById = new Map(categories.map((c) => [c._id, c]))
+    const keys = Array.from(byCat.keys()).sort((a, b) => {
+      if (a === "") return 1
+      if (b === "") return -1
+      return (catOrder.get(a) ?? 9999) - (catOrder.get(b) ?? 9999)
+    })
+    return keys.map((k) => ({ cat: catById.get(k) ?? null, products: byCat.get(k)! }))
+  }, [visibleProducts, category, query, categories])
+
   function handleAdd(p: Product) {
     setSuccess(null)
     addToCart(p)
+    addTick.current += 1
+    setJustAdded({ id: p._id, tick: addTick.current })
   }
 
   const total = cart.reduce((sum, l) => sum + getLineTotal(l.product, l.quantity), 0)
   const itemCount = cart.reduce((sum, l) => sum + l.quantity, 0)
+
+  function renderCard(p: Product) {
+    const inCart = qtyInCart.get(p._id) ?? 0
+    const out = p.stock <= 0
+    const unavailable = out || p.status === "disabled"
+    const hasDiscount = p.discountQty && p.discountQty >= 2 && p.discountPrice != null
+    return (
+      <button
+        key={p._id}
+        onClick={() => handleAdd(p)}
+        disabled={unavailable}
+        className={
+          "relative flex flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
+          (unavailable
+            ? "cursor-not-allowed border-[var(--border)] opacity-50"
+            : "cursor-pointer border-[var(--border)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-bg)]")
+        }
+      >
+        {inCart > 0 && (
+          <span
+            key={justAdded?.id === p._id ? justAdded.tick : "static"}
+            className={
+              "absolute right-2.5 top-2.5 flex h-7 min-w-7 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-semibold text-white " +
+              (justAdded?.id === p._id ? "animate-[add-pop_220ms_ease-out]" : "")
+            }
+          >
+            {inCart}
+          </span>
+        )}
+        <span className="pr-8 text-base font-medium leading-snug text-[var(--text-h)]">{p.name}</span>
+        <span className={`text-base font-semibold tabular-nums ${unavailable ? "text-[var(--text)]" : "text-[var(--accent)]"}`}>
+          ₱{p.price.toFixed(2)}
+        </span>
+        {hasDiscount && (
+          <span className="text-xs tabular-nums text-green-600">
+            {p.discountQty}× for ₱{p.discountPrice!.toFixed(2)}
+          </span>
+        )}
+        <span className="text-xs text-[var(--text)]">
+          {p.status === "disabled" ? "Unavailable" : out ? "Out of stock" : `${p.stock} in stock`}
+        </span>
+      </button>
+    )
+  }
 
   async function submit() {
     setError(null)
@@ -231,12 +305,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     <div className="flex h-dvh flex-col sm:flex-row">
       {/* ---- Menu ---- */}
       <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-        <h1 className="m-0 mb-5">New Order</h1>
-
         {error && <ErrorBanner message={error} />}
 
         <div className="mb-4">
-          <SearchBox value={query} onChange={setQuery} placeholder="Search products…" />
+          <SearchBox value={query} onChange={setQuery} placeholder="Search products…" className="max-w-md" />
         </div>
 
         <div className={`mb-5 flex flex-wrap gap-2 transition-opacity duration-150 ${query ? "opacity-40" : ""}`}>
@@ -260,45 +332,25 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
               ? `No products in ${categories.find((c) => c._id === category)?.name ?? category}.`
               : "No products yet — add some on the Products page."}
           </EmptyState>
+        ) : groupedProducts ? (
+          <div className="flex flex-col gap-6">
+            {groupedProducts.map(({ cat, products }) => (
+              <div key={cat?._id ?? "uncategorized"}>
+                <h2 className="m-0 mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text)]">
+                  {cat?.color && (
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                  )}
+                  {cat?.name ?? "Other"}
+                </h2>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
+                  {products.map(renderCard)}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
-            {visibleProducts.map((p) => {
-              const inCart = qtyInCart.get(p._id) ?? 0
-              const out = p.stock <= 0
-              const unavailable = out || p.status === "disabled"
-              const hasDiscount = p.discountQty && p.discountQty >= 2 && p.discountPrice != null
-              return (
-                <button
-                  key={p._id}
-                  onClick={() => handleAdd(p)}
-                  disabled={unavailable}
-                  className={
-                    "relative flex flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
-                    (unavailable
-                      ? "cursor-not-allowed border-[var(--border)] opacity-50"
-                      : "cursor-pointer border-[var(--border)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-bg)]")
-                  }
-                >
-                  {inCart > 0 && (
-                    <span className="absolute right-2.5 top-2.5 flex h-7 min-w-7 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-semibold text-white">
-                      {inCart}
-                    </span>
-                  )}
-                  <span className="pr-8 text-base font-medium leading-snug text-[var(--text-h)]">{p.name}</span>
-                  <span className="text-base font-semibold tabular-nums text-[var(--accent)]">
-                    ₱{p.price.toFixed(2)}
-                  </span>
-                  {hasDiscount && (
-                    <span className="text-xs tabular-nums text-green-600">
-                      {p.discountQty}× for ₱{p.discountPrice!.toFixed(2)}
-                    </span>
-                  )}
-                  <span className="text-xs text-[var(--text)]">
-                    {p.status === "disabled" ? "Unavailable" : out ? "Out of stock" : `${p.stock} in stock`}
-                  </span>
-                </button>
-              )
-            })}
+            {visibleProducts.map(renderCard)}
           </div>
         )}
       </div>
@@ -318,7 +370,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                   onClick={() => setActiveTable(t)}
                   title={t === "order" ? "Counter" : `Table ${t}`}
                   className={
-                    "relative flex h-9 items-center justify-center rounded-lg border text-sm font-medium transition " +
+                    "relative flex h-9 cursor-pointer items-center justify-center rounded-lg border text-sm font-medium transition " +
                     (t === "order" ? "shrink-0 px-3 " : "flex-1 px-1 ") +
                     (active
                       ? "border-[var(--accent)] bg-[var(--accent-bg)] text-[var(--accent)]"
@@ -343,7 +395,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
               <button
                 onClick={() => { setIsStaffMeal((v) => !v); setStaffMealRecipient("") }}
                 className={
-                  "h-8 rounded-lg border px-3 text-xs font-medium transition " +
+                  "h-8 cursor-pointer rounded-lg border px-3 text-xs font-medium transition " +
                   (isStaffMeal
                     ? "border-purple-500 bg-purple-500/10 text-purple-600"
                     : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--social-bg)]")
@@ -355,9 +407,16 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           </div>
         </div>
 
-        <div className="max-h-56 overflow-y-auto px-5 py-4 sm:max-h-none sm:min-h-40 sm:flex-1">
+        <div
+          className={
+            "overflow-y-auto px-5 py-4 sm:min-h-40 sm:flex-1 " +
+            (cart.length === 0
+              ? "flex max-h-56 items-center justify-center sm:max-h-none"
+              : "max-h-56 sm:max-h-none")
+          }
+        >
           {cart.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[var(--text)]">
+            <p className="text-center text-sm text-[var(--text)]">
               No items yet — tap a product to add it.
             </p>
           ) : (
@@ -561,7 +620,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                 onClick={() => printReceipt(lastOrder)}
                 title="Print receipt"
                 aria-label="Print receipt"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text)] transition hover:bg-[var(--social-bg)] hover:text-[var(--text-h)]"
+                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text)] transition hover:bg-[var(--social-bg)] hover:text-[var(--text-h)]"
               >
                 <PrinterIcon />
               </button>

@@ -125,3 +125,19 @@ code {
     transform: translateY(0);
   }
 }
+
+/* ---- Add-to-cart badge pop — replayed by remounting the badge (see OrderPage) ---- */
+@keyframes add-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

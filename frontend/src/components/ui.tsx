@@ -198,14 +198,15 @@ export function ErrorBanner({ message }: { message: string }) {
 
 // Search input with the magnifier and a clear (×) button, fixed h-10.
 export function SearchBox({
-  value, onChange, placeholder,
+  value, onChange, placeholder, className = "max-w-xs",
 }: {
   value: string
   onChange: (next: string) => void
   placeholder: string
+  className?: string
 }) {
   return (
-    <div className="relative w-full max-w-xs">
+    <div className={`relative w-full ${className}`}>
       <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--text)]">
         <SearchIcon />
       </span>

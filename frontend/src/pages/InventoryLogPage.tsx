@@ -166,7 +166,7 @@ export default function InventoryLogPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Inventory Log" />
+      <PageHeader title="Stock Log" />
 
       {error && <ErrorBanner message={error} />}
 
