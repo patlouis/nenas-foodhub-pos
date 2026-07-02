@@ -4,10 +4,10 @@ const STORE_NAME = "NENAS FOODHUB"
 const STORE_ADDRESS_1 = "Purok 1 Barangay Maburak"
 const STORE_ADDRESS_2 = "Gapan City"
 
-// Receipt is laid out as a fixed monospace character grid so it prints
-// identically on 58mm and 80mm rolls (32-char width fits the narrower 58mm;
-// on 80mm it simply centers with a little margin).
-const WIDTH = 32
+// Printer is a 58mm roll — actual printable width is ~48mm (roll minus margins), not
+// 80mm. At 15px font-size a monospace character is roughly 9px wide, so 18 columns ×
+// 9px ≈ 162px (~43mm), comfortably inside the real printable area with safety margin.
+const WIDTH = 18
 
 function formatDateTime(iso?: string) {
   if (!iso) return "—"
@@ -28,27 +28,24 @@ function row(left: string, right: string) {
   return esc(left + " ".repeat(space) + right)
 }
 
-function center(s: string) {
-  if (s.length >= WIDTH) return esc(s)
-  const pad = Math.floor((WIDTH - s.length) / 2)
-  return esc(" ".repeat(pad) + s)
-}
-
-// Wraps an already-escaped line in a larger font size, for the store name and order
-// number that should stand out from the rest of the monospace grid. line-height:1 is
-// set explicitly — the <pre>'s unitless line-height recomputes per element's own font
-// size, so a bigger span would otherwise get extra vertical space around it.
+// Wraps an already-escaped line in a larger font size, for the order number that should
+// stand out from the rest of the monospace grid. line-height:1 is set explicitly — the
+// <pre>'s unitless line-height recomputes per element's own font size, so a bigger span
+// would otherwise get extra vertical space around it.
 function big(escapedLine: string, px: number) {
   return `<span style="font-size:${px}px;line-height:1">${escapedLine}</span>`
 }
 
-// Centers via real CSS instead of manual space-padding — needed for the store name,
-// since its enlarged font size scales space-padding characters too, throwing off the
-// hand-computed centering math used for the (base-size) lines below it.
+// A block that wraps onto a second line instead of overflowing the physical paper width
+// if its text doesn't fit — used for anything not part of the strict ITEM/AMOUNT grid
+// (store name, address, product names, footer), since those don't need to share a fixed
+// character column with other lines and their length isn't fully under our control.
 // inline-block (not block) — a block box forces its own line break, which combined with
-// the literal "\n" already separating lines in the joined text produced a blank line.
-function bigCentered(rawText: string, px: number) {
-  return `<span style="display:inline-block;width:100%;text-align:center;font-size:${px}px;line-height:1.15">${esc(rawText)}</span>`
+// the literal "\n" already separating lines in the joined text would add a blank line.
+function wrap(rawText: string, opts: { center?: boolean; px?: number } = {}) {
+  const align = opts.center ? "center" : "left"
+  const size = opts.px ? `font-size:${opts.px}px;` : ""
+  return `<span style="display:inline-block;width:100%;text-align:${align};${size}line-height:1.25;white-space:normal;word-break:break-word">${esc(rawText)}</span>`
 }
 
 function buildReceiptHtml(order: Order): string {
@@ -62,11 +59,11 @@ function buildReceiptHtml(order: Order): string {
   const dashed = "-".repeat(WIDTH)
 
   const lines: string[] = []
-  lines.push(bigCentered(STORE_NAME, 30))
-  lines.push(center(STORE_ADDRESS_1))
-  lines.push(center(STORE_ADDRESS_2))
+  lines.push(wrap(STORE_NAME, { center: true, px: 20 }))
+  lines.push(wrap(STORE_ADDRESS_1, { center: true }))
+  lines.push(wrap(STORE_ADDRESS_2, { center: true }))
   lines.push(solid)
-  lines.push(big(esc(`Order  : ${orderNum}`), 24))
+  lines.push(big(esc(`Order  : ${orderNum}`), 17))
   lines.push(esc(`Date   : ${formatDateTime(order.createdAt)}`))
   if (order.cashierName) lines.push(esc(`Cashier: ${order.cashierName}`))
   if (isStaffMeal) {
@@ -78,15 +75,16 @@ function buildReceiptHtml(order: Order): string {
   lines.push(row("ITEM", "AMOUNT"))
   for (const item of order.items) {
     const lineTotal = (item.lineTotal ?? item.price * item.quantity).toFixed(2)
-    lines.push(esc(item.name))
+    // Wraps instead of overflowing — product names aren't a fixed, controlled length.
+    lines.push(wrap(item.name))
     // No leading indent — this line stays flush with the product name above it.
     lines.push(row(`${item.quantity} x P${item.price.toFixed(2)}`, `P${lineTotal}`))
   }
   lines.push(dashed)
   lines.push(row("TOTAL", isStaffMeal ? "P0.00" : `P${order.total.toFixed(2)}`))
   lines.push(solid)
-  lines.push(center("** Thank you for dining! **"))
-  lines.push(center("Please come again."))
+  lines.push(wrap("** Thank you! **", { center: true }))
+  lines.push(wrap("Please come again.", { center: true }))
 
   return lines.join("\n")
 }
@@ -102,12 +100,16 @@ export function printReceipt(order: Order) {
 
   const appRoot = document.getElementById("root")
 
-  // Inject a one-time @page rule so the printed PDF has no page margins.
+  // Inject a one-time @page rule declaring the actual roll width. Without an explicit
+  // size, the browser assumes a default page width for layout purposes — content that
+  // fits fine in the on-screen preview can still get cropped on the physical paper,
+  // since the printer only has ~48mm to work with (58mm roll) regardless of what CSS
+  // would otherwise assume.
   let pageStyle = document.getElementById("pos-print-page-style")
   if (!pageStyle) {
     pageStyle = document.createElement("style")
     pageStyle.id = "pos-print-page-style"
-    pageStyle.textContent = "@page { margin: 0; }"
+    pageStyle.textContent = "@page { size: 58mm auto; margin: 0; }"
     document.head.appendChild(pageStyle)
   }
 
@@ -130,14 +132,16 @@ export function printReceipt(order: Order) {
   ].join(";")
 
   const pre = document.createElement("pre")
-  // innerHTML, not textContent — lines built with big() need their <span> tags parsed.
-  // All dynamic content going in was already escaped via esc()/row()/center().
+  // innerHTML, not textContent — lines built with big()/wrap() need their <span> tags parsed.
+  // All dynamic content going in was already escaped via esc()/row()/wrap().
   pre.innerHTML = html
   pre.style.cssText = [
     "margin:0",
+    "max-width:44mm",
+    "box-sizing:border-box",
     "padding:8px 4px 24px",
     "font-family:Consolas,'Roboto Mono','Courier New',monospace",
-    "font-size:20px",
+    "font-size:15px",
     "line-height:1.4",
     "font-weight:700",
     "white-space:pre",
