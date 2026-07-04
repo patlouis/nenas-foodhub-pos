@@ -6,7 +6,7 @@ import { useAuth } from "../auth"
 import Modal from "../components/Modal"
 import {
   PageShell, PageHeader, ErrorBanner, Toolbar, SearchBox, TableCard, EmptyState,
-  SortTh, PlusIcon, PencilIcon, TrashIcon,
+  SortTh, PlusIcon, PencilIcon, TrashIcon, LogIcon,
   inputCls, selectCls, btnPrimaryCls, btnOutlineCls, btnDangerCls,
   iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE_INVENTORY, Paginator,
 } from "../components/ui"
@@ -32,7 +32,7 @@ function StockBadge({ stock }: { stock: number }) {
   return <span className="tabular-nums text-[var(--text-h)]">{stock}</span>
 }
 
-export default function InventoryPage() {
+export default function InventoryPage({ onViewLog }: { onViewLog?: () => void }) {
   const { user } = useAuth()
   const isAdmin = user?.role === "admin"
 
@@ -314,10 +314,20 @@ export default function InventoryPage() {
       <PageHeader
         title="Inventory"
         action={isAdmin ? (
-          <button onClick={openAdd} className={btnPrimaryCls}>
-            <PlusIcon />
-            Add product
-          </button>
+          <div className="flex items-center gap-2">
+            {onViewLog && (
+              <button onClick={onViewLog} className={btnOutlineCls}>
+                <span className="flex items-center gap-2">
+                  <LogIcon />
+                  Stock Log
+                </span>
+              </button>
+            )}
+            <button onClick={openAdd} className={btnPrimaryCls}>
+              <PlusIcon />
+              Add product
+            </button>
+          </div>
         ) : undefined}
       />
 
@@ -430,7 +440,7 @@ export default function InventoryPage() {
                               className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
                             >
                               <PlusIcon size={12} />
-                              Add stock
+                              Restock
                             </button>
                           </div>
                           <div className="flex items-center gap-1">
@@ -550,7 +560,7 @@ export default function InventoryPage() {
                                   className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
                                 >
                                   <PlusIcon size={12} />
-                                  Add stock
+                                  Restock
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} title="Edit product" aria-label="Edit product" className={iconBtnCls}>
                                   <PencilIcon />
@@ -665,7 +675,7 @@ export default function InventoryPage() {
               Stock
               <div className="flex h-10 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums text-[var(--text)]">
                 {editTarget.stock}
-                <span className="ml-1.5 text-xs">remaining — use Add stock to adjust</span>
+                <span className="ml-1.5 text-xs">remaining — use Restock to adjust</span>
               </div>
             </div>
           ) : (
@@ -787,7 +797,7 @@ export default function InventoryPage() {
       <Modal
         open={!!restockTarget}
         onClose={() => setRestockTarget(null)}
-        title={`Add stock — ${restockTarget?.name ?? ""}`}
+        title={`Restock — ${restockTarget?.name ?? ""}`}
       >
         {restockTarget && (
           <form
@@ -844,7 +854,7 @@ export default function InventoryPage() {
                 disabled={restocking || !delta || deltaNum <= 0}
                 className={btnPrimaryCls}
               >
-                {restocking ? "Saving…" : newStock !== null ? `Add ${deltaNum} units` : "Add stock"}
+                {restocking ? "Saving…" : newStock !== null ? `Restock ${deltaNum} units` : "Restock"}
               </button>
             </div>
           </form>

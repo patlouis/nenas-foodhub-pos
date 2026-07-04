@@ -53,6 +53,24 @@ describe("POST /api/orders", () => {
     expect(updated!.stock).toBe(1);
   });
 
+  it("only lets one of two simultaneous orders take the last unit", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await createProduct({ stock: 1 });
+
+    const placeOne = () =>
+      request(app)
+        .post("/api/orders")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ items: [{ productId: product._id.toString(), quantity: 1 }] });
+
+    const [a, b] = await Promise.all([placeOne(), placeOne()]);
+    const statuses = [a.status, b.status].sort();
+
+    expect(statuses).toEqual([201, 409]);
+    const updated = await Product.findById(product._id);
+    expect(updated!.stock).toBe(0);
+  });
+
   it("rejects a malformed item via schema validation", async () => {
     const { token } = await loginAs("cashier");
     const res = await request(app)

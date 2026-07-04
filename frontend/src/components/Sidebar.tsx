@@ -1,7 +1,7 @@
 import type { Theme } from "../hooks/useTheme"
 import type { Role } from "../types"
 
-export type Page = "dashboard" | "order" | "history" | "categories" | "inventory" | "inventory-log" | "expenses" | "users"
+export type Page = "dashboard" | "order" | "history" | "categories" | "inventory" | "inventory-log" | "supplies" | "supply-log" | "expenses" | "users"
 
 type SidebarProps = {
   current: Page
@@ -67,13 +67,10 @@ function InventoryIcon() {
 }
 
 
-function InventoryLogIcon() {
+function SupplyIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-      <line x1="9" y1="12" x2="15" y2="12" />
-      <line x1="9" y1="16" x2="13" y2="16" />
+      <path d="M12 2c-3 4-6 7.5-6 11a6 6 0 0 0 12 0c0-3.5-3-7-6-11z" />
     </svg>
   )
 }
@@ -151,7 +148,7 @@ const NAV_ITEMS: { id: Page; label: string; Icon: () => React.JSX.Element; admin
   { id: "history",    label: "History",       Icon: HistoryIcon    },
   { id: "categories", label: "Categories",    Icon: CategoriesIcon },
   { id: "inventory",     label: "Inventory",     Icon: InventoryIcon                   },
-  { id: "inventory-log", label: "Stock Log",     Icon: InventoryLogIcon, adminOnly: true },
+  { id: "supplies",      label: "Supplies",       Icon: SupplyIcon,       adminOnly: true },
   { id: "expenses",      label: "Expenses",       Icon: ExpensesIcon,     adminOnly: true },
   { id: "users",         label: "Users",         Icon: UsersIcon,        adminOnly: true },
 ]
@@ -216,41 +213,43 @@ export default function Sidebar({
         })}
       </nav>
 
-      <div className="mt-auto flex w-full flex-col gap-2 border-t border-[var(--border)] pt-3">
-        <div className={"flex items-center gap-2 px-2 " + hideOnRail}>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-[var(--text)]">
-              Signed in as{" "}
-              <span className="font-medium text-[var(--text-h)]">{userName}</span>
-            </p>
+      <div className="mt-auto flex w-full flex-col gap-2">
+        {/* Theme toggle sits above the divider; kept at its original 46×46 size. */}
+        <button
+          onClick={onToggleTheme}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label="Toggle theme"
+          className="flex h-[46px] w-[46px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)]"
+        >
+          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+        </button>
+
+        <div className="flex w-full flex-col gap-2 border-t border-[var(--border)] pt-3">
+          <div className={"flex items-center gap-2 px-2 " + hideOnRail}>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-[var(--text)]">
+                Signed in as{" "}
+                <span className="font-medium text-[var(--text-h)]">{userName}</span>
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+              userRole === "admin"
+                ? "bg-[var(--accent-bg)] text-[var(--accent)]"
+                : "bg-[var(--social-bg)] text-[var(--text)]"
+            }`}>
+              {userRole}
+            </span>
           </div>
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-            userRole === "admin"
-              ? "bg-[var(--accent-bg)] text-[var(--accent)]"
-              : "bg-[var(--social-bg)] text-[var(--text)]"
-          }`}>
-            {userRole}
-          </span>
-        </div>
-        <div className={"flex gap-2 " + (collapsed ? "lg:flex-col" : "")}>
           <button
             onClick={onLogout}
             title={collapsed ? "Log out" : undefined}
             className={
-              "cursor-pointer flex flex-1 items-center justify-center rounded-lg border border-[var(--border)] px-3 py-2.5 text-base text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)] " +
-              (collapsed ? "lg:h-[46px] lg:w-[46px] lg:flex-none lg:p-0" : "")
+              "cursor-pointer flex w-full items-center justify-center rounded-lg border border-[var(--border)] px-3 py-2.5 text-base text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)] " +
+              (collapsed ? "lg:h-[46px] lg:w-[46px] lg:p-0" : "")
             }
           >
             <span className={hideOnRail}>Log out</span>
             {collapsed && <span className="hidden lg:flex"><LogoutIcon /></span>}
-          </button>
-          <button
-            onClick={onToggleTheme}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label="Toggle theme"
-            className="flex h-[46px] w-[46px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)]"
-          >
-            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
           </button>
         </div>
       </div>

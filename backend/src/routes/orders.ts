@@ -96,59 +96,60 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     }
   }
 
-  // Decrement stock atomically per item (the $gte guard stops two registers
-  // overselling the same unit). If any item falls short, restore what was already taken.
-  const decremented: { productId: string; quantity: number }[] = [];
-  for (const it of items) {
-    const result = await Product.updateOne(
-      { _id: it.productId, stock: { $gte: it.quantity } },
-      { $inc: { stock: -it.quantity } }
-    );
-    if (result.modifiedCount === 0) {
-      await Promise.all(
-        decremented.map((d) =>
-          Product.updateOne({ _id: d.productId }, { $inc: { stock: d.quantity } })
-        )
-      );
-      return res
-        .status(409)
-        .json({ error: `Not enough stock for ${byId.get(it.productId)!.name}` });
+  const orderItems = items.map((it) => {
+    const p = byId.get(it.productId)!;
+    const lineTotal = orderType === "staff_meal" ? 0 : computeLineTotal(p, it.quantity);
+    return { product: p._id, name: p.name, price: p.price, costPrice: p.costPrice ?? null, quantity: it.quantity, lineTotal };
+  });
+  const total = orderType === "staff_meal" ? 0 : orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
+
+  // Stock decrements + order-number assignment + the order insert all happen
+  // in one transaction per attempt, so a crash mid-request can't leave stock
+  // taken with no order to show for it (the previous manual-compensation
+  // approach couldn't survive that). A duplicate order-number (two cashiers
+  // submitting at the same instant) aborts that attempt and retries fresh
+  // with a re-read max — up to 5 times — rather than being silently swallowed.
+  let order: InstanceType<typeof Order> | undefined;
+  let failure: { status: number; message: string } | undefined;
+
+  for (let attempt = 0; attempt < 5 && !order; attempt++) {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        for (const it of items) {
+          const result = await Product.updateOne(
+            { _id: it.productId, stock: { $gte: it.quantity } },
+            { $inc: { stock: -it.quantity } },
+            { session }
+          );
+          if (result.modifiedCount === 0) {
+            const err: any = new Error(`Not enough stock for ${byId.get(it.productId)!.name}`);
+            err.status = 409;
+            throw err;
+          }
+        }
+
+        const last = await Order.findOne({}, { orderNumber: 1 }).sort({ orderNumber: -1 }).session(session);
+        const orderNumber = (last?.orderNumber ?? 0) + 1;
+
+        const [created] = await Order.create(
+          [{ orderNumber, items: orderItems, total, cashier: req.user!.sub, cashierName: req.user!.name, orderType, staffMealRecipient, paymentMethod, tableNumber }],
+          { session }
+        );
+        order = created;
+      });
+    } catch (err: any) {
+      if (err.code === 11000) continue; // order-number collision — retry with a fresh transaction
+      failure = { status: err.status ?? 400, message: err.message };
+      break;
+    } finally {
+      await session.endSession();
     }
-    decremented.push({ productId: it.productId, quantity: it.quantity });
   }
 
-  try {
-    const orderItems = items.map((it) => {
-      const p = byId.get(it.productId)!;
-      const lineTotal = orderType === "staff_meal" ? 0 : computeLineTotal(p, it.quantity);
-      return { product: p._id, name: p.name, price: p.price, costPrice: p.costPrice ?? null, quantity: it.quantity, lineTotal };
-    });
-    const total = orderType === "staff_meal" ? 0 : orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
-
-    const last = await Order.findOne({}, { orderNumber: 1 }).sort({ orderNumber: -1 });
-    let orderNumber = (last?.orderNumber ?? 0) + 1;
-
-    let order;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        order = await Order.create({ orderNumber, items: orderItems, total, cashier: req.user!.sub, cashierName: req.user!.name, orderType, staffMealRecipient, paymentMethod, tableNumber });
-        break;
-      } catch (err: any) {
-        if (err.code !== 11000) throw err;
-        orderNumber++;
-      }
-    }
-    if (!order) throw new Error("Failed to assign order number after 5 attempts");
-    res.status(201).json(order);
-  } catch (err: any) {
-    // Order insert failed after stock was taken — give the stock back.
-    await Promise.all(
-      decremented.map((d) =>
-        Product.updateOne({ _id: d.productId }, { $inc: { stock: d.quantity } })
-      )
-    );
-    res.status(400).json({ error: err.message });
-  }
+  if (order) return res.status(201).json(order);
+  if (failure) return res.status(failure.status).json({ error: failure.message });
+  res.status(409).json({ error: "Failed to place order — please try again" });
 });
 
 // PATCH /api/orders/:id/void — void an order (admin only). Restores the
@@ -158,33 +159,49 @@ router.patch("/:id/void", requireAuth, requireAdmin, async (req: Request, res: R
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ error: "Invalid order id" });
   }
-  const order = await Order.findById(req.params.id);
-  if (!order) return res.status(404).json({ error: "Order not found" });
-  if (order.status === "voided") {
-    return res.status(409).json({ error: "Order is already voided" });
+
+  const session = await mongoose.startSession();
+  try {
+    let updated: InstanceType<typeof Order> | null = null;
+    await session.withTransaction(async () => {
+      const order = await Order.findById(req.params.id).session(session);
+      if (!order) {
+        const err: any = new Error("Order not found");
+        err.status = 404;
+        throw err;
+      }
+      if (order.status === "voided") {
+        const err: any = new Error("Order is already voided");
+        err.status = 409;
+        throw err;
+      }
+
+      await Promise.all(
+        order.items.map((item) =>
+          Product.updateOne({ _id: item.product }, { $inc: { stock: item.quantity } }, { session })
+        )
+      );
+
+      // findByIdAndUpdate only validates the fields being set, unlike .save()
+      // which re-validates the whole document (including legacy orders whose
+      // items predate the lineTotal field).
+      updated = await Order.findByIdAndUpdate(
+        order._id,
+        {
+          status: "voided",
+          voidedAt: new Date(),
+          voidedBy: req.user!.sub,
+          voidedByName: req.user!.name,
+        },
+        { session, returnDocument: "after" }
+      );
+    });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(err.status ?? 400).json({ error: err.message });
+  } finally {
+    await session.endSession();
   }
-
-  await Promise.all(
-    order.items.map((item) =>
-      Product.updateOne({ _id: item.product }, { $inc: { stock: item.quantity } })
-    )
-  );
-
-  // findByIdAndUpdate only validates the fields being set, unlike .save()
-  // which re-validates the whole document (including legacy orders whose
-  // items predate the lineTotal field).
-  const updated = await Order.findByIdAndUpdate(
-    order._id,
-    {
-      status: "voided",
-      voidedAt: new Date(),
-      voidedBy: req.user!.sub,
-      voidedByName: req.user!.name,
-    },
-    { returnDocument: "after" }
-  );
-
-  res.json(updated);
 });
 
 export default router;

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useAuth } from "../auth"
-import { inputCls, btnPrimaryCls, fieldLabelCls } from "../components/ui"
+import { inputCls, btnPrimaryCls, fieldLabelCls, PasswordInput } from "../components/ui"
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -50,13 +50,11 @@ export default function LoginPage() {
           </label>
           <label className={fieldLabelCls}>
             Password
-            <input
-              type="password"
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               placeholder="••••••••"
               required
-              className={inputCls}
             />
           </label>
 

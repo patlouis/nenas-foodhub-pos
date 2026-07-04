@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { StockAdjustment } from "../types"
-import { wastageReasonLabel } from "../types"
-import { stockAdjustmentsApi } from "../api"
+import type { SupplyAdjustment } from "../types"
+import { supplyAdjustmentsApi } from "../api"
 import Modal from "../components/Modal"
 import {
   PageShell, PageHeader, ErrorBanner, Toolbar, TableCard, EmptyState,
@@ -10,7 +9,7 @@ import {
 } from "../components/ui"
 
 type DateMode = "all" | "day" | "week" | "month"
-type SortKey = "createdAt" | "productName" | "type" | "quantity" | "costPrice"
+type SortKey = "createdAt" | "supplyName" | "type" | "quantity" | "unitCost"
 
 function toDateStr(d: Date)  { return d.toLocaleDateString("sv") }
 function toMonthStr(d: Date) { return d.toLocaleDateString("sv").slice(0, 7) }
@@ -40,11 +39,11 @@ function dayRange(s: string): [string, string] {
   return [new Date(s + "T00:00:00").toISOString(), new Date(s + "T23:59:59.999").toISOString()]
 }
 
-function TypeBadge({ type }: { type: StockAdjustment["type"] }) {
-  if (type === "wastage") {
+function TypeBadge({ type }: { type: SupplyAdjustment["type"] }) {
+  if (type === "consume") {
     return (
       <span className="inline-flex items-center whitespace-nowrap rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-500">
-        Wastage
+        Used
       </span>
     )
   }
@@ -68,15 +67,15 @@ function fmtMoney(n: number) {
 
 const inputCls = "h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
-export default function InventoryLogPage() {
-  const [data, setData] = useState<StockAdjustment[]>([])
+export default function SupplyLogPage() {
+  const [data, setData] = useState<SupplyAdjustment[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCost, setTotalCost] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [search, setSearch] = useState("")
-  const [typeFilter, setTypeFilter] = useState<"" | "wastage" | "receiving">("")
+  const [typeFilter, setTypeFilter] = useState<"" | "restock" | "consume">("")
   const [dateMode, setDateMode] = useState<DateMode>("all")
   const [datePick, setDatePick] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("createdAt")
@@ -84,7 +83,7 @@ export default function InventoryLogPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [voidTarget, setVoidTarget] = useState<StockAdjustment | null>(null)
+  const [voidTarget, setVoidTarget] = useState<SupplyAdjustment | null>(null)
   const [voiding, setVoiding] = useState(false)
   const [voidError, setVoidError] = useState<string | null>(null)
 
@@ -112,7 +111,7 @@ export default function InventoryLogPage() {
     const token = ++loadToken.current
     setLoading(true)
     setError(null)
-    stockAdjustmentsApi
+    supplyAdjustmentsApi
       .list({
         page,
         limit: pageSize,
@@ -149,7 +148,7 @@ export default function InventoryLogPage() {
     setVoiding(true)
     setVoidError(null)
     try {
-      await stockAdjustmentsApi.void(voidTarget._id)
+      await supplyAdjustmentsApi.void(voidTarget._id)
       setVoidTarget(null)
       load()
     } catch (err) {
@@ -166,21 +165,21 @@ export default function InventoryLogPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Stock Log" />
+      <PageHeader title="Supply Log" />
 
       {error && <ErrorBanner message={error} />}
 
       {loading && data.length === 0 ? (
         <EmptyState>Loading…</EmptyState>
       ) : total === 0 && !isFiltering ? (
-        <EmptyState>No stock adjustments yet — add stock or record wastage from the Inventory page.</EmptyState>
+        <EmptyState>No supply activity yet — restock or log usage from the Supplies page.</EmptyState>
       ) : (
         <>
           <Toolbar count={`${total} record${total === 1 ? "" : "s"}`}>
             <SearchBox
               value={search}
               onChange={(v) => setSearch(v)}
-              placeholder="Search product…"
+              placeholder="Search supply…"
             />
             <div className="flex flex-wrap items-center gap-2">
               {/* Date mode pills */}
@@ -216,26 +215,26 @@ export default function InventoryLogPage() {
 
               <select
                 value={typeFilter}
-                onChange={(e) => { setTypeFilter(e.target.value as "" | "wastage" | "receiving"); setPage(1) }}
+                onChange={(e) => { setTypeFilter(e.target.value as "" | "restock" | "consume"); setPage(1) }}
                 className={inputCls}
               >
                 <option value="">All types</option>
-                <option value="wastage">Wastage</option>
-                <option value="receiving">Restock</option>
+                <option value="restock">Restock</option>
+                <option value="consume">Used</option>
               </select>
             </div>
           </Toolbar>
 
-          {/* Wastage cost summary banner */}
-          {typeFilter === "wastage" && total > 0 && (
-            <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 border-l-red-500 bg-[var(--surface)] px-4 py-3 text-sm">
+          {/* Restock cost summary banner */}
+          {typeFilter === "restock" && total > 0 && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 border-l-green-500 bg-[var(--surface)] px-4 py-3 text-sm">
               <div className="flex items-center gap-2.5">
-                <TypeBadge type="wastage" />
-                <span className="text-[var(--text)]">{total} write-off{total === 1 ? "" : "s"}</span>
+                <TypeBadge type="restock" />
+                <span className="text-[var(--text)]">{total} restock{total === 1 ? "" : "s"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--text)]">Total cost</span>
-                <span className="font-semibold tabular-nums text-red-500">{fmtMoney(totalCost)}</span>
+                <span className="font-semibold tabular-nums text-green-600">{fmtMoney(totalCost)}</span>
               </div>
             </div>
           )}
@@ -254,7 +253,7 @@ export default function InventoryLogPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 font-medium text-[var(--text-h)]">
-                          {adj.productName}
+                          {adj.supplyName}
                           {adj.voided && (
                             <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
                               Voided
@@ -265,8 +264,8 @@ export default function InventoryLogPage() {
                       </div>
                       <TypeBadge type={adj.type} />
                     </div>
-                    {adj.type === "wastage" && adj.reason && (
-                      <p className="mt-1.5 text-xs text-[var(--text)]">{wastageReasonLabel(adj.reason)}</p>
+                    {adj.type === "consume" && adj.reason && (
+                      <p className="mt-1.5 text-xs text-[var(--text)]">{adj.reason}</p>
                     )}
                     {adj.voided && adj.voidedByName && (
                       <p className="mt-1.5 text-xs text-red-500">
@@ -275,11 +274,11 @@ export default function InventoryLogPage() {
                     )}
                     <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2">
                       <div className="flex items-center gap-3 text-sm">
-                        <span className={`font-semibold tabular-nums ${adj.type === "wastage" ? "text-red-500" : "text-green-600"}`}>
-                          {adj.type === "wastage" ? "−" : "+"}{adj.quantity}
+                        <span className={`font-semibold tabular-nums ${adj.type === "consume" ? "text-red-500" : "text-green-600"}`}>
+                          {adj.type === "consume" ? "−" : "+"}{adj.quantity}
                         </span>
                         <span className={`tabular-nums text-[var(--text-h)] ${adj.voided ? "line-through" : ""}`}>
-                          {adj.costPrice != null ? fmtMoney(adj.costPrice * adj.quantity) : "—"}
+                          {adj.type === "restock" && adj.unitCost != null ? fmtMoney(adj.unitCost * adj.quantity) : "—"}
                         </span>
                       </div>
                       {!adj.voided && (
@@ -303,11 +302,11 @@ export default function InventoryLogPage() {
                   <thead>
                     <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
                       <SortTh label="Date" col="createdAt" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="w-48" />
-                      <SortTh label="Product" col="productName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Supply" col="supplyName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Type" col="type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-[var(--text)]">Reason</th>
                       <SortTh label="Qty" col="quantity" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
-                      <SortTh label="Cost/unit" col="costPrice" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
+                      <SortTh label="Cost/unit" col="unitCost" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
                       <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-[var(--text)]">Total cost</th>
                       <th className="w-16 px-4 py-3" />
                     </tr>
@@ -324,7 +323,7 @@ export default function InventoryLogPage() {
                         <td className="whitespace-nowrap px-4 py-3 text-[var(--text)]">{fmtDate(adj.createdAt)}</td>
                         <td className="px-4 py-3 font-medium text-[var(--text-h)]">
                           <span className="flex items-center gap-1.5">
-                            {adj.productName}
+                            {adj.supplyName}
                             {adj.voided && (
                               <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-500">
                                 Voided
@@ -339,18 +338,18 @@ export default function InventoryLogPage() {
                         </td>
                         <td className="px-4 py-3"><TypeBadge type={adj.type} /></td>
                         <td className="px-4 py-3 text-[var(--text)]">
-                          {adj.type === "wastage" ? wastageReasonLabel(adj.reason) : "—"}
+                          {adj.type === "consume" ? (adj.reason ?? "—") : "—"}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
-                          <span className={adj.type === "wastage" ? "text-red-500" : "text-green-600"}>
-                            {adj.type === "wastage" ? "−" : "+"}{adj.quantity}
+                          <span className={adj.type === "consume" ? "text-red-500" : "text-green-600"}>
+                            {adj.type === "consume" ? "−" : "+"}{adj.quantity}
                           </span>
                         </td>
                         <td className={`px-4 py-3 text-right tabular-nums text-[var(--text)] ${adj.voided ? "line-through" : ""}`}>
-                          {adj.costPrice != null ? fmtMoney(adj.costPrice) : "—"}
+                          {adj.type === "restock" && adj.unitCost != null ? fmtMoney(adj.unitCost) : "—"}
                         </td>
                         <td className={`px-4 py-3 text-right tabular-nums font-medium text-[var(--text-h)] ${adj.voided ? "line-through" : ""}`}>
-                          {adj.costPrice != null ? fmtMoney(adj.costPrice * adj.quantity) : "—"}
+                          {adj.type === "restock" && adj.unitCost != null ? fmtMoney(adj.unitCost * adj.quantity) : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
@@ -383,12 +382,12 @@ export default function InventoryLogPage() {
           <p className="text-[var(--text)]">
             Void{" "}
             <span className="font-semibold text-[var(--text-h)]">
-              {voidTarget.type === "wastage" ? "−" : "+"}{voidTarget.quantity} × {voidTarget.productName}
+              {voidTarget.type === "consume" ? "−" : "+"}{voidTarget.quantity} × {voidTarget.supplyName}
             </span>
             ?{" "}
-            {voidTarget.type === "wastage"
-              ? "Stock will be restored."
-              : "Stock will be reduced."}
+            {voidTarget.type === "consume"
+              ? "Quantity will be restored."
+              : "Quantity will be reduced and the linked expense will be voided."}
           </p>
           {voidError && <ErrorBanner message={voidError} />}
           <div className="mt-4 flex justify-end gap-2">

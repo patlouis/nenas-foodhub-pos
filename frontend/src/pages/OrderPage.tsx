@@ -175,10 +175,17 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     return products
       .filter((p) => {
         if (q) return p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q)
-        return !category || (p.category ?? "") === category
+        // "All" excludes unavailable items entirely — they get their own
+        // trailing section instead (see groupedProducts). A specific category
+        // still includes its unavailable items; the sort below sinks them
+        // to the bottom of that category's grid.
+        if (category === "") return !(p.stock <= 0 || p.status === "disabled")
+        return (p.category ?? "") === category
       })
       .sort((a, b) => {
-        // Out-of-stock and disabled always sink to the bottom
+        // Out-of-stock and disabled always sink to the bottom — matters for
+        // search results and a specific category's grid; the "All" view
+        // never has any to sort since it excludes them upstream.
         const aOut = (a.stock <= 0 || a.status === "disabled") ? 1 : 0
         const bOut = (b.stock <= 0 || b.status === "disabled") ? 1 : 0
         if (aOut !== bOut) return aOut - bOut
@@ -195,9 +202,12 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   )
 
   // When browsing "All" with no search active, split the menu into per-category
-  // sections so staff can scan straight to the right zone instead of one long grid.
-  // Filtering to a single category or searching shows a flat grid instead, since
-  // grouping adds no value once the list is already narrowed down.
+  // sections (available items only) plus one trailing "Unavailable" section for
+  // out-of-stock/disabled products, so staff can scan straight to the right zone
+  // instead of one long grid with unavailable items scattered at the bottom of
+  // each category. Filtering to a single category or searching shows a flat
+  // grid instead, since grouping adds no value once the list is already
+  // narrowed down (and a specific category already excludes unavailable items).
   const groupedProducts = useMemo(() => {
     if (category !== "" || query.trim() !== "") return null
     const byCat = new Map<string, Product[]>()
@@ -213,8 +223,22 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       if (b === "") return -1
       return (catOrder.get(a) ?? 9999) - (catOrder.get(b) ?? 9999)
     })
-    return keys.map((k) => ({ cat: catById.get(k) ?? null, products: byCat.get(k)! }))
-  }, [visibleProducts, category, query, categories])
+    const sections = keys.map((k) => ({
+      key: k || "uncategorized",
+      label: catById.get(k)?.name ?? "Other",
+      color: catById.get(k)?.color,
+      products: byCat.get(k)!,
+    }))
+
+    const unavailable = products
+      .filter((p) => p.stock <= 0 || p.status === "disabled")
+      .sort((a, b) => a.name.localeCompare(b.name))
+    if (unavailable.length > 0) {
+      sections.push({ key: "unavailable", label: `Unavailable (${unavailable.length})`, color: undefined, products: unavailable })
+    }
+
+    return sections
+  }, [visibleProducts, category, query, categories, products])
 
   function handleAdd(p: Product) {
     setSuccess(null)
@@ -304,7 +328,9 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   return (
     <div className="flex h-dvh flex-col sm:flex-row">
       {/* ---- Menu ---- */}
-      <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+      {/* pt-3 (not py-6) so the search bar lines up with the table-tabs row and
+          the sidebar toggle across the top; keep the roomier bottom padding. */}
+      <div className="min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6 lg:px-8">
         {error && <ErrorBanner message={error} />}
 
         <div className="mb-4">
@@ -334,16 +360,16 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           </EmptyState>
         ) : groupedProducts ? (
           <div className="flex flex-col gap-6">
-            {groupedProducts.map(({ cat, products }) => (
-              <div key={cat?._id ?? "uncategorized"}>
+            {groupedProducts.map((section) => (
+              <div key={section.key}>
                 <h2 className="m-0 mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text)]">
-                  {cat?.color && (
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                  {section.color && (
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: section.color }} />
                   )}
-                  {cat?.name ?? "Other"}
+                  {section.label}
                 </h2>
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
-                  {products.map(renderCard)}
+                  {section.products.map(renderCard)}
                 </div>
               </div>
             ))}

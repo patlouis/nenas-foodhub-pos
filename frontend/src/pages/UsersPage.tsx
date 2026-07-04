@@ -6,7 +6,7 @@ import {
   PageShell, PageHeader, ErrorBanner, Toolbar, SearchBox, TableCard, EmptyState,
   SortTh, PlusIcon, PencilIcon, TrashIcon,
   inputCls, selectCls, btnPrimaryCls, btnOutlineCls, btnDangerCls,
-  iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE, Paginator,
+  iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE, Paginator, PasswordInput,
 } from "../components/ui"
 
 type SortKey = "name" | "email" | "role"
@@ -286,7 +286,7 @@ export default function UsersPage() {
           </label>
           <label className={fieldLabelCls}>
             {editTarget ? "New password" : "Password"}
-            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editTarget ? "Leave blank to keep current" : "At least 6 characters"} className={inputCls} />
+            <PasswordInput value={form.password} onChange={(v) => setForm({ ...form, password: v })} placeholder={editTarget ? "Leave blank to keep current" : "At least 6 characters"} />
           </label>
           <label className={fieldLabelCls}>
             Role
