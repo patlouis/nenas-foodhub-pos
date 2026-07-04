@@ -68,7 +68,7 @@ function fmtMoney(n: number) {
 
 const inputCls = "h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
-export default function InventoryLogPage() {
+export default function InventoryLogPage({ onBack }: { onBack?: () => void }) {
   const [data, setData] = useState<StockAdjustment[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -166,7 +166,7 @@ export default function InventoryLogPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Stock Log" />
+      <PageHeader title="Stock Log" onBack={onBack} backLabel="Back to Inventory" />
 
       {error && <ErrorBanner message={error} />}
 

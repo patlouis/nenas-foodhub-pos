@@ -104,6 +104,15 @@ export function EyeOffIcon({ size = 15 }: IconProps) {
   )
 }
 
+export function ArrowLeftIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </svg>
+  )
+}
+
 export function LogIcon({ size = 15 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -198,11 +207,31 @@ export function PageShell({ children }: { children: ReactNode }) {
 }
 
 // Title row: h1 on the left, primary action pinned to the right —
-// identical position on every page.
-export function PageHeader({ title, action }: { title: string; action?: ReactNode }) {
+// identical position on every page. When `onBack` is provided (e.g. the log
+// pages reached from Inventory/Supplies), a small back link sits above the
+// title so the title itself stays left-aligned with the page content.
+export function PageHeader({
+  title, action, onBack, backLabel = "Back",
+}: {
+  title: string
+  action?: ReactNode
+  onBack?: () => void
+  backLabel?: string
+}) {
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <h1 className="m-0">{title}</h1>
+      <div className="min-w-0">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-1 inline-flex cursor-pointer items-center gap-1 text-sm text-[var(--text)] transition-colors hover:text-[var(--text-h)]"
+          >
+            <ArrowLeftIcon size={15} />
+            {backLabel}
+          </button>
+        )}
+        <h1 className="m-0">{title}</h1>
+      </div>
       {action}
     </div>
   )
@@ -278,6 +307,67 @@ export function PasswordInput({
         className="absolute inset-y-0 right-2 flex cursor-pointer items-center text-[var(--text)] transition hover:text-[var(--text-h)]"
       >
         {visible ? <EyeOffIcon /> : <EyeIcon />}
+      </button>
+    </div>
+  )
+}
+
+// Quantity input with − / + steppers flanking a typeable field. Steppers make
+// small nudges (wastage/consume) fast on touch; the field stays editable so
+// large batches (restock) can be typed. `value`/`onChange` are strings to match
+// the number-as-text form state the modals use. Native spinner arrows are
+// hidden since the ± buttons replace them.
+const stepBtnCls =
+  "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-lg text-[var(--text-h)] transition hover:bg-[var(--social-bg)] disabled:cursor-not-allowed disabled:opacity-40"
+
+export function QuantityStepper({
+  value, onChange, min = 0, max, step = 1, placeholder, autoFocus,
+}: {
+  value: string
+  onChange: (next: string) => void
+  min?: number
+  max?: number
+  step?: number
+  placeholder?: string
+  autoFocus?: boolean
+}) {
+  const clamp = (n: number) => {
+    let c = n
+    if (c < min) c = min
+    if (max != null && c > max) c = max
+    return c
+  }
+  const nudge = (dir: 1 | -1) => {
+    const raw = value.trim()
+    if (raw === "" || isNaN(Number(raw))) {
+      // From empty/invalid, + starts at the smallest useful value; − clamps to min.
+      onChange(String(dir > 0 ? clamp(Math.max(min, step)) : min))
+      return
+    }
+    // toFixed(4) trims float noise like 0.1 + 0.2 = 0.30000000000000004.
+    onChange(String(Number(clamp(Number(raw) + dir * step).toFixed(4))))
+  }
+  const num = Number(value)
+  const valid = value.trim() !== "" && !isNaN(num)
+  return (
+    <div className="flex items-stretch gap-2">
+      <button type="button" onClick={() => nudge(-1)} disabled={valid && num <= min} aria-label="Decrease" className={stepBtnCls}>
+        −
+      </button>
+      <input
+        type="number"
+        inputMode="decimal"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        className={`${inputCls} text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+      />
+      <button type="button" onClick={() => nudge(1)} disabled={valid && max != null && num >= max} aria-label="Increase" className={stepBtnCls}>
+        +
       </button>
     </div>
   )

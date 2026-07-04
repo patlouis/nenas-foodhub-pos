@@ -67,7 +67,7 @@ function fmtMoney(n: number) {
 
 const inputCls = "h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
-export default function SupplyLogPage() {
+export default function SupplyLogPage({ onBack }: { onBack?: () => void }) {
   const [data, setData] = useState<SupplyAdjustment[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -165,7 +165,7 @@ export default function SupplyLogPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Supply Log" />
+      <PageHeader title="Supply Log" onBack={onBack} backLabel="Back to Supplies" />
 
       {error && <ErrorBanner message={error} />}
 

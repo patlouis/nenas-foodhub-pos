@@ -202,9 +202,9 @@ function App() {
           {page === "history"    && <OrderHistoryPage />}
           {page === "categories" && <CategoriesPage />}
           {page === "inventory"     && <InventoryPage onViewLog={user.role === "admin" ? () => go("inventory-log") : undefined} />}
-          {page === "inventory-log" && user.role === "admin" && <InventoryLogPage />}
+          {page === "inventory-log" && user.role === "admin" && <InventoryLogPage onBack={() => go("inventory")} />}
           {page === "supplies" && user.role === "admin" && <SuppliesPage onViewLog={() => go("supply-log")} />}
-          {page === "supply-log" && user.role === "admin" && <SupplyLogPage />}
+          {page === "supply-log" && user.role === "admin" && <SupplyLogPage onBack={() => go("supplies")} />}
           {page === "expenses" && user.role === "admin" && <ExpensesPage />}
           {page === "users"         && user.role === "admin" && <UsersPage />}
         </main>

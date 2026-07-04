@@ -68,9 +68,13 @@ function InventoryIcon() {
 
 
 function SupplyIcon() {
+  // 3D package box — isometric carton, distinct from the Inventory
+  // (stacked-layers) icon.
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2c-3 4-6 7.5-6 11a6 6 0 0 0 12 0c0-3.5-3-7-6-11z" />
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="M3.3 7 12 12l8.7-5" />
+      <path d="M12 22V12" />
     </svg>
   )
 }
@@ -192,7 +196,12 @@ export default function Sidebar({
 
       <nav className="flex w-full flex-col gap-1">
         {NAV_ITEMS.filter(({ adminOnly }) => !adminOnly || userRole === "admin").map(({ id, label, Icon }) => {
-          const active = current === id
+          // The log pages aren't nav items of their own — they're reached from
+          // Inventory/Supplies — so keep the parent item highlighted there.
+          const active =
+            current === id ||
+            (id === "inventory" && current === "inventory-log") ||
+            (id === "supplies" && current === "supply-log")
           return (
             <button
               key={id}
@@ -219,7 +228,10 @@ export default function Sidebar({
           onClick={onToggleTheme}
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           aria-label="Toggle theme"
-          className="flex h-[46px] w-[46px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)]"
+          className={
+            "flex h-[46px] w-[46px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)] " +
+            (collapsed ? "lg:mx-auto" : "")
+          }
         >
           {theme === "dark" ? <SunIcon /> : <MoonIcon />}
         </button>
@@ -245,7 +257,7 @@ export default function Sidebar({
             title={collapsed ? "Log out" : undefined}
             className={
               "cursor-pointer flex w-full items-center justify-center rounded-lg border border-[var(--border)] px-3 py-2.5 text-base text-[var(--text-h)] transition-colors hover:bg-[var(--social-bg)] " +
-              (collapsed ? "lg:h-[46px] lg:w-[46px] lg:p-0" : "")
+              (collapsed ? "lg:mx-auto lg:h-[46px] lg:w-[46px] lg:p-0" : "")
             }
           >
             <span className={hideOnRail}>Log out</span>

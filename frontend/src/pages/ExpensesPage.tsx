@@ -67,6 +67,12 @@ function CategoryBadge({ category }: { category: ExpenseCategory }) {
 
 const pickerCls = "h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
+// "supplies" is intentionally omitted from manual entry: a supplies expense
+// should come from restocking on the Supplies page (which also updates the
+// quantity on hand). The category still exists for those auto-created expenses
+// and remains in the filter/list below.
+const ADDABLE_CATEGORIES = EXPENSE_CATEGORIES.filter((c) => c !== "supplies")
+
 export default function ExpensesPage() {
   const [data, setData] = useState<Expense[]>([])
   const [total, setTotal] = useState(0)
@@ -409,7 +415,7 @@ export default function ExpensesPage() {
               onChange={(e) => setAddCat(e.target.value as ExpenseCategory)}
               className="h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             >
-              {EXPENSE_CATEGORIES.map((c) => (
+              {ADDABLE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>{EXPENSE_CATEGORY_LABELS[c]}</option>
               ))}
             </select>
@@ -435,7 +441,7 @@ export default function ExpensesPage() {
             />
           </label>
           <label className={fieldLabelCls}>
-            Qty <span className="text-xs font-normal text-[var(--text)]">(optional)</span>
+            <span>Qty <span className="text-xs font-normal text-[var(--text)]">(optional)</span></span>
             <input
               type="number" min="0.01" step="any"
               value={addQty}

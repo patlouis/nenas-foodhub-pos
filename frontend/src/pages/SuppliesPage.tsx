@@ -4,7 +4,7 @@ import { suppliesApi } from "../api"
 import Modal from "../components/Modal"
 import {
   PageShell, PageHeader, ErrorBanner, Toolbar, SearchBox, TableCard, EmptyState,
-  SortTh, PlusIcon, PencilIcon, LogIcon,
+  SortTh, PlusIcon, PencilIcon, LogIcon, QuantityStepper,
   inputCls, selectCls, btnPrimaryCls, btnOutlineCls, btnDangerCls,
   iconBtnCls, fieldLabelCls, PAGE_SIZE_INVENTORY, Paginator,
 } from "../components/ui"
@@ -539,12 +539,11 @@ export default function SuppliesPage({ onViewLog }: { onViewLog?: () => void }) 
 
             <label className={fieldLabelCls}>
               Quantity to add
-              <input
-                type="number" min="0" step="any"
+              <QuantityStepper
                 value={restockQty}
-                onChange={(e) => setRestockQty(e.target.value)}
+                onChange={setRestockQty}
+                min={0}
                 placeholder={`e.g. 5 ${restockTarget.unit}`}
-                className={inputCls}
                 autoFocus
               />
             </label>
@@ -599,12 +598,12 @@ export default function SuppliesPage({ onViewLog }: { onViewLog?: () => void }) 
 
             <label className={fieldLabelCls}>
               Quantity used
-              <input
-                type="number" min="0" max={consumeTarget.quantity} step="any"
+              <QuantityStepper
                 value={consumeQty}
-                onChange={(e) => setConsumeQty(e.target.value)}
+                onChange={setConsumeQty}
+                min={0}
+                max={consumeTarget.quantity}
                 placeholder={`e.g. 1.5 ${consumeTarget.unit}`}
-                className={inputCls}
                 autoFocus
               />
             </label>

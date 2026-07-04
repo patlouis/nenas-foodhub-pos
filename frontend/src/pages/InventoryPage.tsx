@@ -6,7 +6,7 @@ import { useAuth } from "../auth"
 import Modal from "../components/Modal"
 import {
   PageShell, PageHeader, ErrorBanner, Toolbar, SearchBox, TableCard, EmptyState,
-  SortTh, PlusIcon, PencilIcon, TrashIcon, LogIcon,
+  SortTh, PlusIcon, PencilIcon, TrashIcon, LogIcon, QuantityStepper,
   inputCls, selectCls, btnPrimaryCls, btnOutlineCls, btnDangerCls,
   iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE_INVENTORY, Paginator,
 } from "../components/ui"
@@ -811,13 +811,11 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
 
             <label className={fieldLabelCls}>
               Quantity to add
-              <input
-                type="number"
-                min="1"
+              <QuantityStepper
                 value={delta}
-                onChange={(e) => setDelta(e.target.value)}
+                onChange={setDelta}
+                min={1}
                 placeholder="e.g. 50"
-                className={inputCls}
                 autoFocus
               />
             </label>
@@ -879,14 +877,12 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
 
             <label className={fieldLabelCls}>
               Quantity to write off
-              <input
-                type="number"
-                min="1"
-                max={wastageTarget.stock}
+              <QuantityStepper
                 value={wasteQty}
-                onChange={(e) => setWasteQty(e.target.value)}
+                onChange={setWasteQty}
+                min={1}
+                max={wastageTarget.stock}
                 placeholder="e.g. 2"
-                className={inputCls}
                 autoFocus
               />
             </label>
