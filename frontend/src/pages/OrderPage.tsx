@@ -350,7 +350,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
         {loading ? (
           <EmptyState>Loading menu…</EmptyState>
-        ) : visibleProducts.length === 0 ? (
+        ) : (groupedProducts ? groupedProducts.length === 0 : visibleProducts.length === 0) ? (
+          // In the "All" view, "empty" means no sections at all — if every
+          // product is unavailable there's still an "Unavailable (N)" section
+          // to show, so we key off groupedProducts rather than visibleProducts.
           <EmptyState>
             {query
               ? `No products match "${query}".`
