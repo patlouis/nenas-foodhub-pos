@@ -226,16 +226,25 @@ export default function InventoryLogPage({ onBack }: { onBack?: () => void }) {
             </div>
           </Toolbar>
 
-          {/* Wastage cost summary banner */}
-          {typeFilter === "wastage" && total > 0 && (
-            <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 border-l-red-500 bg-[var(--surface)] px-4 py-3 text-sm">
+          {/* Wastage / restock cost summary banner */}
+          {(typeFilter === "wastage" || typeFilter === "receiving") && total > 0 && (
+            <div
+              className={
+                "mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 bg-[var(--surface)] px-4 py-3 text-sm " +
+                (typeFilter === "wastage" ? "border-l-red-500" : "border-l-green-500")
+              }
+            >
               <div className="flex items-center gap-2.5">
-                <TypeBadge type="wastage" />
-                <span className="text-[var(--text)]">{total} write-off{total === 1 ? "" : "s"}</span>
+                <TypeBadge type={typeFilter} />
+                <span className="text-[var(--text)]">
+                  {total} {typeFilter === "wastage" ? "write-off" : "restock"}{total === 1 ? "" : "s"}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--text)]">Total cost</span>
-                <span className="font-semibold tabular-nums text-red-500">{fmtMoney(totalCost)}</span>
+                <span className={`font-semibold tabular-nums ${typeFilter === "wastage" ? "text-red-500" : "text-green-600"}`}>
+                  {fmtMoney(totalCost)}
+                </span>
               </div>
             </div>
           )}

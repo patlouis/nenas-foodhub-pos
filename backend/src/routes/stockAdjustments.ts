@@ -44,7 +44,7 @@ router.get("/", requireAuth, requireAdmin, async (req: Request, res: Response, n
       StockAdjustment.find(filter).sort({ [sortKey]: dir } as Record<SortKey, 1 | -1>).skip((page - 1) * limit).limit(limit),
       StockAdjustment.countDocuments(filter),
       StockAdjustment.aggregate([
-        { $match: { ...filter, voided: false, type: "wastage" } },
+        { $match: { ...filter, voided: false } },
         { $group: { _id: null, totalCost: { $sum: { $multiply: ["$costPrice", "$quantity"] } } } },
       ]),
     ]);

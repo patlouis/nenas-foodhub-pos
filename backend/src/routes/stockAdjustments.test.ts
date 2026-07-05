@@ -36,7 +36,7 @@ describe("GET /api/stock-adjustments", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns paginated adjustments with totalCost", async () => {
+  it("returns paginated adjustments with totalCost across all types", async () => {
     const { token, user } = await loginAs("admin");
     const product = await makeProduct();
     await StockAdjustment.create([
@@ -49,7 +49,35 @@ describe("GET /api/stock-adjustments", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(2);
     expect(res.body.total).toBe(2);
+    expect(res.body.totalCost).toBe(280); // wastage 2×40 + receiving 5×40
+  });
+
+  it("scopes totalCost to the wastage type filter", async () => {
+    const { token, user } = await loginAs("admin");
+    const product = await makeProduct();
+    await StockAdjustment.create([
+      { product: product._id, productName: product.name, type: "wastage", quantity: 2, costPrice: 40, adjustedBy: user._id, adjustedByName: user.name, voided: false },
+      { product: product._id, productName: product.name, type: "receiving", quantity: 5, costPrice: 40, adjustedBy: user._id, adjustedByName: user.name, voided: false },
+    ]);
+
+    const res = await request(app).get("/api/stock-adjustments?type=wastage").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
     expect(res.body.totalCost).toBe(80); // only wastage: 2 × 40
+  });
+
+  it("scopes totalCost to the receiving type filter", async () => {
+    const { token, user } = await loginAs("admin");
+    const product = await makeProduct();
+    await StockAdjustment.create([
+      { product: product._id, productName: product.name, type: "wastage", quantity: 2, costPrice: 40, adjustedBy: user._id, adjustedByName: user.name, voided: false },
+      { product: product._id, productName: product.name, type: "receiving", quantity: 5, costPrice: 40, adjustedBy: user._id, adjustedByName: user.name, voided: false },
+    ]);
+
+    const res = await request(app).get("/api/stock-adjustments?type=receiving").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalCost).toBe(200); // only receiving: 5 × 40
   });
 
   it("filters by type", async () => {

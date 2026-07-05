@@ -25,7 +25,7 @@ function StockBadge({ stock }: { stock: number }) {
     )
   if (stock <= 5)
     return (
-      <span className="inline-flex items-center rounded-full bg-yellow-400/20 px-2.5 py-0.5 text-xs font-medium text-yellow-600">
+      <span className="inline-flex items-center whitespace-nowrap rounded-full bg-yellow-400/20 px-2.5 py-0.5 text-xs font-medium text-yellow-600">
         Low · {stock}
       </span>
     )
