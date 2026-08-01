@@ -53,8 +53,6 @@ const BADGE_COLORS: Record<ExpenseCategory, string> = {
   utilities: "bg-yellow-500/10 text-yellow-600",
   salaries:  "bg-purple-500/10 text-purple-500",
   supplies:  "bg-green-500/10 text-green-600",
-  grocery:   "bg-lime-500/10 text-lime-600",
-  meat:      "bg-red-500/10 text-red-500",
   repairs:   "bg-orange-500/10 text-orange-500",
   other:     "bg-[var(--social-bg)] text-[var(--text)]",
 }
