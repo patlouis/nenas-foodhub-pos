@@ -12,7 +12,7 @@ import {
 type SortKey = "name" | "quantity" | "unitCost"
 type SortDir = "asc" | "desc"
 
-const EMPTY: NewSupply = { name: "", unit: "", quantity: 0, unitCost: undefined, lowStockAt: null }
+const EMPTY: NewSupply = { name: "", unit: "", quantity: 0, unitCost: undefined, lowStockAt: 1 }
 
 function QuantityBadge({ quantity, lowStockAt }: { quantity: number; lowStockAt: number | null }) {
   if (quantity === 0)
