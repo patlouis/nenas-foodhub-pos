@@ -54,12 +54,18 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
 
     // The payment-type revenue total is admin-only; never compute or return it
     // for cashiers so it can't be read from the API response.
+    // Voided orders are excluded from the money total (their stock was put back
+    // and nothing was collected) but stay in the list itself as historical
+    // record — same split the expenses route makes.
     const isAdmin = req.user?.role === "admin";
     const [orders, total, amountAgg] = await Promise.all([
       Order.find(filter).sort(sort).skip((page - 1) * limit).limit(limit),
       Order.countDocuments(filter),
       isAdmin && paymentType
-        ? Order.aggregate([{ $match: filter }, { $group: { _id: null, sum: { $sum: "$total" } } }])
+        ? Order.aggregate([
+            { $match: { ...filter, status: { $ne: "voided" } } },
+            { $group: { _id: null, sum: { $sum: "$total" } } },
+          ])
         : Promise.resolve(null),
     ]);
     const totalAmount = amountAgg ? (amountAgg[0]?.sum ?? 0) : undefined;

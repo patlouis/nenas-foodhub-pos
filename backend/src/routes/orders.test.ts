@@ -181,6 +181,32 @@ describe("GET /api/orders", () => {
     expect(res.body.totalPages).toBe(3);
   });
 
+  it("excludes voided orders from the payment-type total but still lists them", async () => {
+    const { token: cashierToken } = await loginAs("cashier");
+    const { token: adminToken } = await loginAs("admin");
+    const product = await createProduct({ price: 100, stock: 10 });
+
+    const place = () =>
+      request(app)
+        .post("/api/orders")
+        .set("Authorization", `Bearer ${cashierToken}`)
+        .send({ items: [{ productId: product._id.toString(), quantity: 1 }] });
+
+    await place();
+    const toVoid = await place();
+    await request(app)
+      .patch(`/api/orders/${toVoid.body._id}/void`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    const res = await request(app)
+      .get("/api/orders?paymentType=cash")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalAmount).toBe(100); // the voided ₱100 order is not counted
+    expect(res.body.data).toHaveLength(2);  // but it remains in the historical list
+  });
+
   it("filters by search query across cashier name and item names", async () => {
     const { token } = await loginAs("cashier");
     const adobo = await createProduct({ name: "Adobo", stock: 10 });
