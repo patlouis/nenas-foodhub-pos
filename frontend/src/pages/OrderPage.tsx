@@ -3,8 +3,9 @@ import type { Product, Category, User, TableKey } from "../types"
 import { TABLE_KEYS } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
+import { getChange } from "../tender"
 import { useTableCarts } from "../hooks/useTableCarts"
-import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls, PrinterIcon } from "../components/ui"
+import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls, PrinterIcon, inputCls } from "../components/ui"
 import { printReceipt } from "../utils/printReceipt"
 import Modal from "../components/Modal"
 
@@ -89,6 +90,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   const [success, setSuccess] = useState<string | null>(null)
   const [lastOrder, setLastOrder] = useState<import("../types").Order | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  // Cash handed over, kept as the raw input string so "not typed yet" stays
+  // distinct from a deliberate 0. Cleared every time the modal opens so one
+  // customer's tender can never carry into the next order.
+  const [amountReceived, setAmountReceived] = useState("")
 
   // Tracks the most recently tapped product so its cart-count badge can replay
   // a pop animation — gives instant tactile feedback on a tablet with no hover state.
@@ -250,6 +255,11 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   const total = cart.reduce((sum, l) => sum + getLineTotal(l.product, l.quantity), 0)
   const itemCount = cart.reduce((sum, l) => sum + l.quantity, 0)
 
+  // Change is only meaningful for cash: GCash is transferred to the exact
+  // peso and a staff meal is always ₱0.00, so neither can leave any owing.
+  const tenderable = !isStaffMeal && paymentMethod === "cash"
+  const change = getChange(amountReceived, total)
+
   function renderCard(p: Product) {
     const inCart = qtyInCart.get(p._id) ?? 0
     const out = p.stock <= 0
@@ -313,9 +323,22 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       setPaymentMethod("cash")
       setIsStaffMeal(false)
       setStaffMealRecipient("")
+      setAmountReceived("")
       setLastOrder(order)
       const num = order.orderNumber != null ? `#${String(order.orderNumber).padStart(4, "0")}` : ""
-      setSuccess(isStaffMeal ? `Staff meal ${num} recorded` : `Order ${num} placed — ₱${order.total.toFixed(2)}`)
+      // The change is what the cashier needs on screen at this exact moment —
+      // they read it off the toast while counting the drawer, after the modal
+      // has closed. Recomputed against order.total because the server, not the
+      // cart preview, is the source of truth for what was actually charged.
+      // Falls back to the total when no tender was entered or it fell short.
+      const changeDue = tenderable ? getChange(amountReceived, order.total) : null
+      setSuccess(
+        isStaffMeal
+          ? `Staff meal ${num} recorded`
+          : changeDue !== null && changeDue >= 0
+            ? `Order ${num} placed — change ₱${changeDue.toFixed(2)}`
+            : `Order ${num} placed — ₱${order.total.toFixed(2)}`,
+      )
       await load() // stock changed on the server
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to place order")
@@ -557,7 +580,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           )}
 
           <button
-            onClick={() => setConfirmOpen(true)}
+            onClick={() => { setAmountReceived(""); setConfirmOpen(true) }}
             disabled={cart.length === 0 || submitting}
             className={`${btnPrimaryCls} w-full ${isStaffMeal ? "bg-purple-600 hover:bg-purple-700 focus-visible:ring-purple-500" : ""}`}
           >
@@ -618,6 +641,43 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
               </span>
             )}
           </div>
+
+          {/* Cash tendered — optional. Left blank, this renders nothing extra
+              and the modal behaves exactly as it did before. */}
+          {tenderable && (
+            <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-3">
+              <label className="flex items-center justify-between gap-3 text-sm text-[var(--text)]">
+                Amount received
+                <span className="w-36 shrink-0">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    placeholder="0.00"
+                    className={`${inputCls} text-right tabular-nums`}
+                  />
+                </span>
+              </label>
+
+              {change !== null && (
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-[var(--text)]">
+                    {change < 0 ? "Short" : "Change"}
+                  </span>
+                  <span
+                    className={`text-lg font-semibold tabular-nums ${
+                      change < 0 ? "text-red-500" : "text-emerald-600"
+                    }`}
+                  >
+                    {change < 0 ? "−" : ""}₱{Math.abs(change).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-3">
             <button onClick={() => setConfirmOpen(false)} className={btnOutlineCls}>
