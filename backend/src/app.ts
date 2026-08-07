@@ -40,6 +40,7 @@ app.use("/api/users", userRoutes);
 // Global JSON error handler — catches anything routes don't handle themselves,
 // including Mongoose errors from routes without try/catch.
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("[error]", err.message);
+  // Log the stack (never the response body — it would leak internal paths).
+  console.error("[error]", err.stack ?? err.message);
   res.status(err.status ?? 500).json({ error: err.message || "Internal server error" });
 });

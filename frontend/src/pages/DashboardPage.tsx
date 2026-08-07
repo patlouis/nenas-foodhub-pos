@@ -207,17 +207,15 @@ function BarChart({
 function RankList({
   items,
   valueFmt = String,
-  limit = 7,
 }: {
   items: { label: string; value: number; sub?: string }[]
   valueFmt?: (v: number) => string
-  limit?: number
 }) {
   const max = Math.max(...items.map((i) => i.value), 1)
   return (
     <div className="flex flex-col gap-3">
-      {items.slice(0, limit).map((item, i) => (
-        <div key={i} className="flex flex-col gap-1">
+      {items.map((item) => (
+        <div key={item.label} className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-2 text-sm">
             <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">{item.label}</span>
             <span className="shrink-0 tabular-nums text-[var(--text)]">{valueFmt(item.value)}</span>
@@ -619,7 +617,7 @@ export default function DashboardPage() {
 
         <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-2 lg:max-h-[296px]">
           <p className="mb-4 shrink-0 text-sm font-semibold text-[var(--text-h)]">
-            Best Sellers{" "}
+            By Product{" "}
             <span className="font-normal text-[var(--text)]">· {periodLabel(dateMode, datePick)}</span>
           </p>
           <div className="min-h-0 flex-1 overflow-y-auto">
