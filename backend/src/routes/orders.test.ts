@@ -4,6 +4,8 @@ import { app } from "../app.js";
 import { connectTestDB, disconnectTestDB, clearTestDB } from "../test/db.js";
 import { loginAs } from "../test/helpers.js";
 import Product from "../models/Product.js";
+import Order from "../models/Order.js";
+import mongoose from "mongoose";
 
 beforeAll(connectTestDB);
 afterEach(clearTestDB);
@@ -221,5 +223,68 @@ describe("GET /api/orders", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(res.body.data[0].items[0].name).toBe("Sinigang");
+  });
+});
+
+describe("GET /api/orders/peak-hours", () => {
+  // timestamps sets createdAt on insert and marks it immutable, so the
+  // backdating has to go through the driver rather than the model.
+  async function orderAt(
+    iso: string,
+    overrides: Partial<{ status: "completed" | "voided"; orderType: "sale" | "staff_meal" }> = {}
+  ) {
+    const order = await Order.create({
+      items: [{ product: new mongoose.Types.ObjectId(), name: "Adobo", price: 100, quantity: 1, lineTotal: 100 }],
+      total: 100,
+      status: overrides.status ?? "completed",
+      orderType: overrides.orderType ?? "sale",
+    });
+    await Order.collection.updateOne({ _id: order._id }, { $set: { createdAt: new Date(iso) } });
+  }
+
+  it("requires authentication", async () => {
+    const res = await request(app).get("/api/orders/peak-hours");
+    expect(res.status).toBe(401);
+  });
+
+  it("buckets orders into 24 hours using the requested timezone", async () => {
+    const { token } = await loginAs("cashier");
+    // Asia/Manila is UTC+8, so 01:00 UTC lands in the 09:00 bucket.
+    await orderAt("2026-08-15T01:00:00Z");
+    await orderAt("2026-08-16T01:30:00Z");
+    await orderAt("2026-08-15T05:00:00Z");
+
+    const res = await request(app)
+      .get("/api/orders/peak-hours?timezone=Asia/Manila")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.hours).toHaveLength(24);
+    expect(res.body.hours[9]).toBe(2);
+    expect(res.body.hours[13]).toBe(1);
+    expect(res.body.hours[0]).toBe(0);
+  });
+
+  it("ignores voided and staff meal orders", async () => {
+    const { token } = await loginAs("cashier");
+    await orderAt("2026-08-15T01:00:00Z");
+    await orderAt("2026-08-15T01:00:00Z", { status: "voided" });
+    await orderAt("2026-08-15T01:00:00Z", { orderType: "staff_meal" });
+
+    const res = await request(app)
+      .get("/api/orders/peak-hours?timezone=Asia/Manila")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.hours[9]).toBe(1);
+  });
+
+  it("rejects an invalid timezone", async () => {
+    const { token } = await loginAs("cashier");
+    const res = await request(app)
+      .get("/api/orders/peak-hours?timezone=Not/AZone")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
   });
 });

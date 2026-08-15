@@ -1,4 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from "express";
+import mongoose from "mongoose";
 import cors from "cors";
 import morgan from "morgan";
 import productRoutes from "./routes/products.js";
@@ -26,7 +27,17 @@ if (process.env.NODE_ENV !== "test") {
 }
 app.use(express.json());
 
-app.get("/api/health", (_req: Request, res: Response) => res.json({ status: "ok" }));
+// Pings the database rather than just returning a constant: a keep-alive that
+// only touched Node would let the Mongoose pool and the Atlas cluster idle, so
+// the first real query after a quiet spell still paid the reconnect cost.
+app.get("/api/health", async (_req: Request, res: Response) => {
+  try {
+    await mongoose.connection.db?.admin().ping();
+    res.json({ status: "ok" });
+  } catch {
+    res.status(503).json({ status: "degraded", error: "database unreachable" });
+  }
+});
 app.use("/api/auth", authRoutes);
 app.use("/api/products", requireAuth, productRoutes);
 app.use("/api/categories", requireAuth, categoryRoutes);

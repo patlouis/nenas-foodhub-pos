@@ -5,7 +5,7 @@ import Product from "../models/Product.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { computeLineTotal } from "../lib/pricing.js";
-import { createOrderSchema, listOrdersQuerySchema } from "../schemas/orders.js";
+import { createOrderSchema, listOrdersQuerySchema, peakHoursQuerySchema } from "../schemas/orders.js";
 import { paginate } from "../schemas/pagination.js";
 
 const router = Router();
@@ -70,6 +70,31 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
     ]);
     const totalAmount = amountAgg ? (amountAgg[0]?.sum ?? 0) : undefined;
     res.json(paginate(orders, page, limit, total, totalAmount));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/orders/peak-hours — order counts per hour of the day, all time.
+// Aggregated here so the dashboard can draw the chart without downloading
+// every order it has. Hours are bucketed in the caller's timezone, matching
+// what the browser used to compute locally.
+router.get("/peak-hours", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = peakHoursQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid query" });
+    }
+    const { timezone } = parsed.data;
+
+    const buckets = await Order.aggregate<{ _id: number; count: number }>([
+      { $match: { status: { $ne: "voided" }, orderType: { $ne: "staff_meal" } } },
+      { $group: { _id: { $hour: { date: "$createdAt", timezone } }, count: { $sum: 1 } } },
+    ]);
+
+    const hours = new Array<number>(24).fill(0);
+    for (const b of buckets) hours[b._id] = b.count;
+    res.json({ hours });
   } catch (err) {
     next(err);
   }
