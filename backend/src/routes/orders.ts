@@ -148,6 +148,9 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     try {
       await session.withTransaction(async () => {
         for (const it of items) {
+          // Untracked products can't run out, and $inc against a null field
+          // is a MongoDB error rather than a no-op.
+          if (byId.get(it.productId)!.stock === null) continue;
           const result = await Product.updateOne(
             { _id: it.productId, stock: { $gte: it.quantity } },
             { $inc: { stock: -it.quantity } },

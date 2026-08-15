@@ -10,13 +10,20 @@ import {
   inputCls, selectCls, btnPrimaryCls, btnOutlineCls, btnDangerCls,
   iconBtnCls, iconBtnDangerCls, fieldLabelCls, PAGE_SIZE_INVENTORY, Paginator,
 } from "../components/ui"
+import { hasStock, hasStockFor, isTracked } from "../stock"
 
 type SortKey = "name" | "sku" | "category" | "costPrice" | "price" | "stock"
 type SortDir = "asc" | "desc"
 
 const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", costPrice: null, discountQty: null, discountPrice: null }
 
-function StockBadge({ stock }: { stock: number }) {
+function StockBadge({ stock }: { stock: number | null }) {
+  if (stock === null)
+    return (
+      <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[var(--social-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--text)]">
+        Not tracked
+      </span>
+    )
   if (stock === 0)
     return (
       <span className="inline-flex items-center whitespace-nowrap rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-500">
@@ -60,6 +67,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
 
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
+  const [confirmUntrack, setConfirmUntrack] = useState(false)
   const [deleteHasHistory, setDeleteHasHistory] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -117,14 +125,16 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
     const q = query.trim().toLowerCase()
     const filtered = products.filter((p) => {
       if (categoryFilter && (p.category ?? "") !== categoryFilter) return false
+      // Untracked products match neither alert filter — nothing to run down.
       if (stockFilter === "out" && p.stock !== 0) return false
-      if (stockFilter === "low" && !(p.stock > 0 && p.stock <= 5)) return false
+      if (stockFilter === "low" && !(hasStock(p.stock) && p.stock <= 5)) return false
       return !q || p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q) || (catMap.get(p.category ?? "")?.name ?? "").toLowerCase().includes(q)
     })
     return [...filtered].sort((a, b) => {
       let cmp = 0
       if (sortKey === "stock") {
-        cmp = a.stock - b.stock
+        // Untracked sorts below every counted item rather than as a zero.
+        cmp = (a.stock ?? Infinity) - (b.stock ?? Infinity)
       } else if (sortKey === "costPrice") {
         cmp = (a.costPrice ?? -1) - (b.costPrice ?? -1)
       } else if (sortKey === "price") {
@@ -153,7 +163,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
   }
 
   const outCount = products.filter((p) => p.stock === 0).length
-  const lowCount = products.filter((p) => p.stock > 0 && p.stock <= 5).length
+  const lowCount = products.filter((p) => hasStock(p.stock) && p.stock <= 5).length
 
   // If the active stock filter's badge would disappear (count hit 0), clear it
   // so the table doesn't stay stuck showing an empty filtered list.
@@ -188,6 +198,16 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
       setFormError("Name and a price greater than 0 are required")
       return
     }
+    if (untrackingOnSave) {
+      setConfirmUntrack(true)
+      return
+    }
+    await saveProduct()
+  }
+
+  async function saveProduct() {
+    setConfirmUntrack(false)
+    setFormError(null)
     setSubmitting(true)
     try {
       if (editTarget) {
@@ -270,7 +290,10 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
   }
 
   const deltaNum = parseInt(delta, 10)
-  const newStock = restockTarget && deltaNum > 0 ? restockTarget.stock + deltaNum : null
+  const newStock =
+    restockTarget && isTracked(restockTarget.stock) && deltaNum > 0
+      ? restockTarget.stock + deltaNum
+      : null
 
   // Wastage
   function openWastage(p: Product) {
@@ -287,7 +310,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
       setWastageError("Enter a positive whole number")
       return
     }
-    if (qty > wastageTarget.stock) {
+    if (!hasStockFor(wastageTarget.stock, qty)) {
       setWastageError(`Only ${wastageTarget.stock} in stock`)
       return
     }
@@ -304,8 +327,26 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
     }
   }
 
+  // The saved count, or null when this product isn't counted / is brand new.
+  const savedStock = editTarget && isTracked(editTarget.stock) ? editTarget.stock : null
+
+  // Confirm only when saving would actually discard a count. Guarded at save
+  // rather than at the toggle: that's the point of no return, so a mis-tapped
+  // switch is caught however it was reached. A product sitting at zero loses
+  // nothing, so it untracks without the prompt.
+  const untrackingOnSave = hasStock(savedStock) && form.stock === null
+
+  function toggleTracking() {
+    // Switching back on restores the saved count: the toggle only edits the
+    // unsaved form, so nothing is discarded until Save.
+    setForm((prev) => ({ ...prev, stock: prev.stock === null ? (savedStock ?? 0) : null }))
+  }
+
   const wasteQtyNum = parseInt(wasteQty, 10)
-  const wasteNewStock = wastageTarget && wasteQtyNum > 0 ? wastageTarget.stock - wasteQtyNum : null
+  const wasteNewStock =
+    wastageTarget && isTracked(wastageTarget.stock) && wasteQtyNum > 0
+      ? wastageTarget.stock - wasteQtyNum
+      : null
 
   const isFiltering = query.trim() !== "" || categoryFilter !== "" || stockFilter !== ""
 
@@ -426,7 +467,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
                       {isAdmin && (
                         <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2">
                           <div className="flex items-center gap-1">
-                            {p.stock > 0 && (
+                            {hasStock(p.stock) && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); openWastage(p) }}
                                 className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-red-500/10 hover:text-red-500"
@@ -435,13 +476,17 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
                                 Wastage
                               </button>
                             )}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openRestock(p) }}
-                              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
-                            >
-                              <PlusIcon size={12} />
-                              Restock
-                            </button>
+                            {/* The server rejects restocking an untracked
+                                product, so don't offer a button that can only fail. */}
+                            {isTracked(p.stock) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openRestock(p) }}
+                                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
+                              >
+                                <PlusIcon size={12} />
+                                Restock
+                              </button>
+                            )}
                           </div>
                           <div className="flex items-center gap-1">
                             <button
@@ -545,7 +590,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
                           {isAdmin && (
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-end gap-1">
-                                {p.stock > 0 && (
+                                {hasStock(p.stock) && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); openWastage(p) }}
                                     title="Record wastage"
@@ -555,13 +600,15 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
                                     Wastage
                                   </button>
                                 )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); openRestock(p) }}
-                                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
-                                >
-                                  <PlusIcon size={12} />
-                                  Restock
-                                </button>
+                                {isTracked(p.stock) && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openRestock(p) }}
+                                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-h)] transition hover:bg-[var(--social-bg)]"
+                                  >
+                                    <PlusIcon size={12} />
+                                    Restock
+                                  </button>
+                                )}
                                 <button onClick={(e) => { e.stopPropagation(); openEdit(p) }} title="Edit product" aria-label="Edit product" className={iconBtnCls}>
                                   <PencilIcon />
                                 </button>
@@ -670,18 +717,50 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
             )
           })()}
 
-          {editTarget ? (
+          {/* Tracking off = stock null. See src/stock.ts for why. */}
+          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
+            <div>
+              <span className="text-sm text-[var(--text-h)]">Track stock</span>
+              <p className="text-xs text-[var(--text)]">Off for items measured in Supplies, like rice or meals</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Track stock"
+              aria-checked={form.stock !== null}
+              onClick={toggleTracking}
+              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${form.stock !== null ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${form.stock !== null ? "left-[22px]" : "left-0.5"}`}
+              />
+            </button>
+          </div>
+
+          {form.stock === null ? (
+            <p className="text-xs text-[var(--text)]">
+              Always sellable. It won't appear in stock alerts, and Restock and Wastage don't apply.
+            </p>
+          ) : savedStock !== null ? (
             <div className={fieldLabelCls}>
               Stock
               <div className="flex h-10 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums text-[var(--text)]">
-                {editTarget.stock}
+                {savedStock}
                 <span className="ml-1.5 text-xs">remaining — use Restock to adjust</span>
               </div>
             </div>
           ) : (
+            // New product, or tracking switched back on. The latter is a stock
+            // take — selling continued while untracked, so the count is entered
+            // fresh rather than resumed.
             <label className={fieldLabelCls}>
-              Initial stock
+              {editTarget ? "Current stock on hand" : "Initial stock"}
               <input type="number" min="0" value={form.stock || ""} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} placeholder="0" className={inputCls} />
+              {editTarget && (
+                <span className="text-xs font-normal text-[var(--text)]">
+                  Count what's actually on the shelf — tracking resumes from this number.
+                </span>
+              )}
             </label>
           )}
 
@@ -752,6 +831,31 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Nested inside the product form, so it renders after it to sit on top. */}
+      <Modal
+        open={confirmUntrack}
+        onClose={() => setConfirmUntrack(false)}
+        title="Turn off stock tracking?"
+      >
+        <p className="text-[var(--text)]">
+          <span className="font-medium text-[var(--text-h)]">{editTarget?.name}</span> will stop
+          being counted, and its current stock of{" "}
+          <span className="font-medium text-[var(--text-h)]">{savedStock}</span> will be discarded.
+        </p>
+        <p className="mt-2 text-sm text-[var(--text)]">
+          Selling carries on while an item is untracked, so switching tracking back on later starts
+          from a fresh count rather than resuming this one.
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={() => setConfirmUntrack(false)} className={btnOutlineCls}>
+            Cancel
+          </button>
+          <button onClick={() => void saveProduct()} disabled={submitting} className={btnDangerCls}>
+            {submitting ? "Saving…" : "Turn off tracking and save"}
+          </button>
+        </div>
       </Modal>
 
       {/* Delete confirmation modal */}
@@ -881,7 +985,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
                 value={wasteQty}
                 onChange={setWasteQty}
                 min={1}
-                max={wastageTarget.stock}
+                max={wastageTarget.stock ?? undefined}
                 placeholder="e.g. 2"
                 autoFocus
               />
@@ -915,7 +1019,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
               <button type="button" onClick={() => setWastageTarget(null)} className={btnOutlineCls}>Cancel</button>
               <button
                 type="submit"
-                disabled={wasting || !wasteQty || wasteQtyNum <= 0 || wasteQtyNum > wastageTarget.stock}
+                disabled={wasting || !wasteQty || wasteQtyNum <= 0 || !hasStockFor(wastageTarget.stock, wasteQtyNum)}
                 className={btnDangerCls}
               >
                 {wasting ? "Saving…" : wasteQtyNum > 0 ? `Write off ${wasteQtyNum} units` : "Record wastage"}

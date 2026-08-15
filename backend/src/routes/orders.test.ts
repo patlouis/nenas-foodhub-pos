@@ -41,6 +41,47 @@ describe("POST /api/orders", () => {
     expect(updated!.stock).toBe(3);
   });
 
+  it("sells a product that doesn't track stock without ever running out", async () => {
+    const { token } = await loginAs("cashier");
+    // Rice by the cup: limited by Supplies, not by a per-item tally.
+    const product = await Product.create({ name: "Rice", price: 20, stock: null });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: product._id.toString(), quantity: 500 }] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.total).toBe(10000);
+
+    // Left untracked rather than decremented into a number.
+    const after = await Product.findById(product._id);
+    expect(after!.stock).toBeNull();
+  });
+
+  it("still enforces stock on tracked items in an order that mixes both", async () => {
+    const { token } = await loginAs("cashier");
+    const rice = await Product.create({ name: "Rice", price: 20, stock: null });
+    const yakult = await createProduct({ name: "Yakult", stock: 1 });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [
+          { productId: rice._id.toString(), quantity: 3 },
+          { productId: yakult._id.toString(), quantity: 2 },
+        ],
+      });
+
+    expect(res.status).toBe(409);
+    // The untracked line must not mask the tracked one running short.
+    const riceAfter = await Product.findById(rice._id);
+    expect(riceAfter!.stock).toBeNull();
+    const yakultAfter = await Product.findById(yakult._id);
+    expect(yakultAfter!.stock).toBe(1);
+  });
+
   it("rejects when stock is insufficient and leaves stock untouched", async () => {
     const { token } = await loginAs("cashier");
     const product = await createProduct({ stock: 1 });

@@ -3,7 +3,9 @@ export interface Product {
   name: string
   sku?: string
   price: number
-  stock: number
+  // null = not counted. Use the helpers in src/stock.ts rather than comparing
+  // directly: `stock <= 0` can't tell untracked from sold out.
+  stock: number | null
   category?: string
   status?: "active" | "disabled"
   costPrice?: number | null

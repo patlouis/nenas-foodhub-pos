@@ -78,7 +78,7 @@ router.post("/", requireAuth, requireAdmin, validateBody(createProductSchema), a
     const data = { ...req.body };
     if (!data.sku) data.sku = undefined;
     const product = await Product.create(data);
-    if (product.stock > 0) {
+    if (product.stock !== null && product.stock > 0) {
       await StockAdjustment.create({
         product: product._id,
         productName: product.name,
@@ -137,15 +137,20 @@ router.patch("/:id/stock", requireAuth, requireAdmin, validateBody(adjustStockSc
     // latest cost so this and future snapshots (and menu profit) reflect it.
     const update: Record<string, unknown> = { $inc: { stock: delta } };
     if (delta > 0 && costPrice != null) update.$set = { costPrice };
+    // Removing needs enough on hand; adding only needs a tracked product,
+    // since $inc against a null stock would error rather than start counting.
     const product = await Product.findOneAndUpdate(
-      { _id: req.params.id, ...(delta < 0 ? { stock: { $gte: -delta } } : {}) },
+      { _id: req.params.id, stock: delta < 0 ? { $gte: -delta } : { $ne: null } },
       update,
       { returnDocument: "after" }
     );
     if (!product) {
-      return res.status(delta < 0 ? 409 : 404).json({
-        error: delta < 0 ? "Not enough stock to remove that many units" : "Product not found",
-      });
+      const existing = await Product.findById(req.params.id, { stock: 1 });
+      if (!existing) return res.status(404).json({ error: "Product not found" });
+      if (existing.stock === null) {
+        return res.status(409).json({ error: "This product doesn't track stock" });
+      }
+      return res.status(409).json({ error: "Not enough stock to remove that many units" });
     }
     // Log positive deltas as "receiving"; negative deltas (manual removals) are
     // uncommon but still worth recording.
@@ -181,10 +186,12 @@ router.post("/:id/wastage", requireAuth, requireAdmin, validateBody(wastageSchem
       { returnDocument: "after" }
     );
     if (!product) {
-      const exists = await Product.exists({ _id: req.params.id });
-      return res.status(exists ? 409 : 404).json({
-        error: exists ? "Not enough stock to write off that many units" : "Product not found",
-      });
+      const existing = await Product.findById(req.params.id, { stock: 1 });
+      if (!existing) return res.status(404).json({ error: "Product not found" });
+      if (existing.stock === null) {
+        return res.status(409).json({ error: "This product doesn't track stock" });
+      }
+      return res.status(409).json({ error: "Not enough stock to write off that many units" });
     }
 
     try {

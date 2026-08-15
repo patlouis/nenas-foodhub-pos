@@ -90,6 +90,106 @@ describe("POST /api/products", () => {
   });
 });
 
+describe("untracked stock (stock: null)", () => {
+  it("creates a product with tracking off and logs no receiving", async () => {
+    const { token } = await loginAs("admin");
+
+    const res = await request(app)
+      .post("/api/products")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Rice", price: 20, stock: null });
+
+    expect(res.status).toBe(201);
+    expect(res.body.stock).toBeNull();
+    expect(await StockAdjustment.countDocuments({ product: res.body._id })).toBe(0);
+  });
+
+  it("switching a counted product to untracked discards the count", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Rice", price: 20, stock: 12 });
+
+    const res = await request(app)
+      .put(`/api/products/${product._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ stock: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body.stock).toBeNull();
+    // Deliberately dropped, not stashed: selling continues while untracked, so
+    // 12 would be wrong by the time tracking ever resumes.
+    const after = await Product.findById(product._id);
+    expect(after!.stock).toBeNull();
+  });
+
+  it("switching tracking back on starts from the count supplied, not the old one", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Rice", price: 20, stock: null });
+
+    const res = await request(app)
+      .put(`/api/products/${product._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ stock: 3 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.stock).toBe(3);
+  });
+
+  it("restock works again once tracking is switched back on", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Rice", price: 20, stock: null });
+
+    const blocked = await request(app)
+      .patch(`/api/products/${product._id}/stock`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ delta: 5 });
+    expect(blocked.status).toBe(409);
+
+    await request(app)
+      .put(`/api/products/${product._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ stock: 3 });
+
+    const allowed = await request(app)
+      .patch(`/api/products/${product._id}/stock`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ delta: 5 });
+
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.stock).toBe(8);
+  });
+
+  it("refuses to restock a product that doesn't track stock", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Rice", price: 20, stock: null });
+
+    const res = await request(app)
+      .patch(`/api/products/${product._id}/stock`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ delta: 10 });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/doesn't track stock/);
+    // The point of the guard: $inc against null would error, not start a count.
+    const after = await Product.findById(product._id);
+    expect(after!.stock).toBeNull();
+  });
+
+  it("refuses to write off wastage against a product that doesn't track stock", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Rice", price: 20, stock: null });
+
+    const res = await request(app)
+      .post(`/api/products/${product._id}/wastage`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ quantity: 3, reason: "spoiled" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/doesn't track stock/);
+    const after = await Product.findById(product._id);
+    expect(after!.stock).toBeNull();
+  });
+});
+
 describe("PATCH /api/products/:id/stock", () => {
   it("rejects removing more stock than is available", async () => {
     const { token } = await loginAs("admin");

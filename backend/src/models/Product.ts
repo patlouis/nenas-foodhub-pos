@@ -4,7 +4,9 @@ export interface IProduct {
   name: string;
   sku?: string;
   price: number;
-  stock: number;
+  // null = not counted (cooked meals, rice by the cup — limited by Supplies).
+  // Handle null before comparing: `stock <= 0` can't tell it from sold out.
+  stock: number | null;
   category?: mongoose.Types.ObjectId;
   status: "active" | "disabled";
   costPrice?: number | null;
@@ -19,7 +21,7 @@ const productSchema = new mongoose.Schema<IProduct>(
     name: { type: String, required: true, trim: true },
     sku: { type: String, trim: true, unique: true, sparse: true },
     price: { type: Number, required: true, min: 0 },
-    stock: { type: Number, default: 0, min: 0 },
+    stock: { type: Number, default: 0, min: 0 },  // null = untracked
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
     status: { type: String, enum: ["active", "disabled"], default: "active" },
     costPrice: { type: Number, default: null, min: 0 },

@@ -65,9 +65,11 @@ router.patch("/:id/void", requireAuth, requireAdmin, async (req: Request, res: R
   if (!adj) return res.status(404).json({ error: "Not found" });
   if (adj.voided) return res.status(409).json({ error: "Already voided" });
 
-  const productExists = await Product.exists({ _id: adj.product });
+  const existing = await Product.findById(adj.product, { stock: 1 });
 
-  if (productExists) {
+  // A product that's been deleted, or since switched to untracked, has no
+  // tally to reverse into. Both cases void the record and leave stock alone.
+  if (existing && existing.stock !== null) {
     if (adj.type === "receiving") {
       // Voiding a receiving means removing stock — ensure there's enough.
       const product = await Product.findOne({ _id: adj.product, stock: { $gte: adj.quantity } });
@@ -80,7 +82,6 @@ router.patch("/:id/void", requireAuth, requireAdmin, async (req: Request, res: R
       await Product.updateOne({ _id: adj.product }, { $inc: { stock: adj.quantity } });
     }
   }
-  // If the product was deleted, skip stock update but still mark the record voided.
 
   const updated = await StockAdjustment.findByIdAndUpdate(
     adj._id,

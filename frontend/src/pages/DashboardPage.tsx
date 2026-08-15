@@ -3,6 +3,7 @@ import type { Order, Product, Category, StockAdjustment, Expense } from "../type
 import { wastageReasonLabel } from "../types"
 import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi, expensesApi } from "../api"
 import { ErrorBanner, PageShell, SearchBox, selectDenseCls } from "../components/ui"
+import { hasStock } from "../stock"
 
 import {
   BUSINESS_DAY_CUTOFF_HOUR,
@@ -610,7 +611,7 @@ export default function DashboardPage() {
     }))
   }, [peakHourCounts])
 
-  // Inventory alerts
+  // Untracked products are skipped: with no count they can be neither out nor low.
   const outOfStock = useMemo(
     () => products.filter((p) => p.stock === 0 && p.status !== "disabled"),
     [products],
@@ -618,8 +619,8 @@ export default function DashboardPage() {
   const lowStock = useMemo(
     () =>
       products
-        .filter((p) => p.stock > 0 && p.stock <= 5 && p.status !== "disabled")
-        .sort((a, b) => a.stock - b.stock),
+        .filter((p) => hasStock(p.stock) && p.stock <= 5 && p.status !== "disabled")
+        .sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0)),
     [products],
   )
 

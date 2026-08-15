@@ -4,6 +4,7 @@ import { TABLE_KEYS } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
 import { getChange } from "../tender"
+import { hasStockFor, isUnavailable, stockLabel } from "../stock"
 import { useTableCarts } from "../hooks/useTableCarts"
 import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls, PrinterIcon, inputCls } from "../components/ui"
 import { printReceipt } from "../utils/printReceipt"
@@ -162,7 +163,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       (p) => p.sku && p.sku.toLowerCase() === pendingBarcodeSku.toLowerCase()
     )
     if (match) {
-      if (match.stock > 0 && match.status !== "disabled") {
+      if (!isUnavailable(match)) {
         handleAdd(match)
       } else {
         setError(`"${match.name}" is unavailable`)
@@ -184,15 +185,15 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
         // trailing section instead (see groupedProducts). A specific category
         // still includes its unavailable items; the sort below sinks them
         // to the bottom of that category's grid.
-        if (category === "") return !(p.stock <= 0 || p.status === "disabled")
+        if (category === "") return !isUnavailable(p)
         return (p.category ?? "") === category
       })
       .sort((a, b) => {
         // Out-of-stock and disabled always sink to the bottom — matters for
         // search results and a specific category's grid; the "All" view
         // never has any to sort since it excludes them upstream.
-        const aOut = (a.stock <= 0 || a.status === "disabled") ? 1 : 0
-        const bOut = (b.stock <= 0 || b.status === "disabled") ? 1 : 0
+        const aOut = isUnavailable(a) ? 1 : 0
+        const bOut = isUnavailable(b) ? 1 : 0
         if (aOut !== bOut) return aOut - bOut
         const aOrd = catOrder.get(a.category ?? "") ?? 9999
         const bOrd = catOrder.get(b.category ?? "") ?? 9999
@@ -236,7 +237,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     }))
 
     const unavailable = products
-      .filter((p) => p.stock <= 0 || p.status === "disabled")
+      .filter((p) => isUnavailable(p))
       .sort((a, b) => a.name.localeCompare(b.name))
     if (unavailable.length > 0) {
       sections.push({ key: "unavailable", label: `Unavailable (${unavailable.length})`, color: undefined, products: unavailable })
@@ -262,8 +263,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
   function renderCard(p: Product) {
     const inCart = qtyInCart.get(p._id) ?? 0
-    const out = p.stock <= 0
-    const unavailable = out || p.status === "disabled"
+    const unavailable = isUnavailable(p)
     const hasDiscount = p.discountQty && p.discountQty >= 2 && p.discountPrice != null
     return (
       <button
@@ -298,7 +298,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           </span>
         )}
         <span className="text-xs text-[var(--text)]">
-          {p.status === "disabled" ? "Unavailable" : out ? "Out of stock" : `${p.stock} in stock`}
+          {p.status === "disabled" ? "Unavailable" : stockLabel(p.stock)}
         </span>
       </button>
     )
@@ -502,7 +502,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                     </span>
                     <button
                       onClick={() => setQty(l.product._id, l.quantity + 1)}
-                      disabled={l.quantity >= l.product.stock}
+                      disabled={!hasStockFor(l.product.stock, l.quantity + 1)}
                       aria-label={`Increase ${l.product.name}`}
                       className={qtyBtnCls}
                     >

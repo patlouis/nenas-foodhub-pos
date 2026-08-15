@@ -7,7 +7,8 @@ export const createProductSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   sku: z.string().trim().optional(),
   price: z.number().min(0, "Price must be 0 or greater"),
-  stock: z.number().int().min(0, "Stock must be 0 or greater").optional(),
+  // null switches stock tracking off for this product.
+  stock: z.number().int().min(0, "Stock must be 0 or greater").nullable().optional(),
   category: objectId.optional(),
   status: z.enum(["active", "disabled"]).optional(),
   costPrice: z.number().min(0, "costPrice must be 0 or greater").nullable().optional(),

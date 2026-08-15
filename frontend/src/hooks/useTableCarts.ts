@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Product, TableKey } from "../types"
 import { TABLE_KEYS } from "../types"
+import { clampToStock, hasStockFor, isUnavailable } from "../stock"
 
 export type CartLine = { product: Product; quantity: number }
 
@@ -76,8 +77,8 @@ export function useTableCarts(products: Product[]) {
       const out: CartLine[] = []
       for (const l of lines) {
         const product = byId.get(l.productId)
-        if (!product || product.status === "disabled" || product.stock <= 0) continue
-        const quantity = Math.min(l.quantity, product.stock)
+        if (!product || isUnavailable(product)) continue
+        const quantity = clampToStock(product.stock, l.quantity)
         if (quantity > 0) out.push({ product, quantity })
       }
       return out
@@ -101,7 +102,7 @@ export function useTableCarts(products: Product[]) {
         const lines = prev[activeTable]
         const existing = lines.find((l) => l.productId === p._id)
         if (existing) {
-          if (existing.quantity >= p.stock) return prev
+          if (!hasStockFor(p.stock, existing.quantity + 1)) return prev
           return {
             ...prev,
             [activeTable]: lines.map((l) => (l.productId === p._id ? { ...l, quantity: l.quantity + 1 } : l)),
@@ -120,8 +121,10 @@ export function useTableCarts(products: Product[]) {
         if (qty <= 0) {
           return { ...prev, [activeTable]: lines.filter((l) => l.productId !== productId) }
         }
-        const stock = byId.get(productId)?.stock ?? qty
-        const clamped = Math.min(qty, stock)
+        // An unknown product falls back to the requested qty, same as an
+        // untracked one — neither has a ceiling to clamp against.
+        const known = byId.get(productId)
+        const clamped = known ? clampToStock(known.stock, qty) : qty
         return {
           ...prev,
           [activeTable]: lines.map((l) => (l.productId === productId ? { ...l, quantity: clamped } : l)),
