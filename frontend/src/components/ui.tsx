@@ -11,6 +11,17 @@ const controlBase =
 export const inputCls = `w-full ${controlBase} placeholder:text-[var(--text)]`
 export const selectCls = `${controlBase} cursor-pointer`
 
+// Compact h-8 variants for controls that live inside a dashboard card rather
+// than a page toolbar, where the h-10 rhythm above overwhelms a small panel.
+// Kept as a separate token instead of an h-8 override so two height utilities
+// can never end up in one class list, where the winner is stylesheet order
+// rather than the order you wrote them.
+const controlDenseBase =
+  "h-8 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 text-xs text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+
+export const inputDenseCls = `w-full ${controlDenseBase} placeholder:text-[var(--text)]`
+export const selectDenseCls = `${controlDenseBase} cursor-pointer`
+
 export const btnPrimaryCls =
   "inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 text-[15px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
 export const btnOutlineCls =
@@ -245,31 +256,35 @@ export function ErrorBanner({ message }: { message: string }) {
   )
 }
 
-// Search input with the magnifier and a clear (×) button, fixed h-10.
+// Search input with the magnifier and a clear (×) button. h-10 by default to
+// match the toolbars; `dense` drops it to h-8 for use inside a dashboard card.
 export function SearchBox({
-  value, onChange, placeholder, className = "max-w-xs",
+  value, onChange, placeholder, className = "max-w-xs", dense = false,
 }: {
   value: string
   onChange: (next: string) => void
   placeholder: string
   className?: string
+  dense?: boolean
 }) {
   return (
     <div className={`relative w-full ${className}`}>
-      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--text)]">
+      <span
+        className={`pointer-events-none absolute inset-y-0 flex items-center text-[var(--text)] ${dense ? "left-2" : "left-3"}`}
+      >
         <SearchIcon />
       </span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`${inputCls} pl-9 pr-8 text-sm`}
+        className={dense ? `${inputDenseCls} pl-7 pr-7` : `${inputCls} pl-9 pr-8 text-sm`}
       />
       {value && (
         <button
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className="absolute inset-y-0 right-2 flex cursor-pointer items-center text-[var(--text)] transition hover:text-[var(--text-h)]"
+          className={`absolute inset-y-0 flex cursor-pointer items-center text-[var(--text)] transition hover:text-[var(--text-h)] ${dense ? "right-1.5" : "right-2"}`}
         >
           <XSmallIcon />
         </button>

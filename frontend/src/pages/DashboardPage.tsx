@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import type { Order, Product, Category, StockAdjustment, Expense } from "../types"
 import { wastageReasonLabel } from "../types"
 import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi, expensesApi } from "../api"
-import { ErrorBanner, PageShell } from "../components/ui"
+import { ErrorBanner, PageShell, SearchBox, selectDenseCls } from "../components/ui"
 
 import {
   BUSINESS_DAY_CUTOFF_HOUR,
@@ -251,6 +251,9 @@ export default function DashboardPage() {
   const [dateMode, setDateMode] = useState<DateMode>("day")
   const [datePick, setDatePick] = useState(() => currentBusinessDate())
   const [stockAlertFilter, setStockAlertFilter] = useState<"all" | "out" | "low">("all")
+  // By Product panel filters — narrow the list only, never the figures above it.
+  const [productQuery, setProductQuery] = useState("")
+  const [productCategory, setProductCategory] = useState("")
 
   function switchMode(mode: DateMode) {
     setDateMode(mode)
@@ -473,12 +476,38 @@ export default function DashboardPage() {
       .map(([name, d]) => ({ label: name, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
   }, [curOrders])
 
-  // Category breakdown — qty sold + revenue
-  const categoryRevenue = useMemo(() => {
+  // Product name → category name. Order items carry a snapshot of the product
+  // name, so anything since renamed or deleted falls through to "Other" —
+  // the same bucket products with no category land in.
+  const catByProductName = useMemo(() => {
     const catIdMap = new Map(categories.map((c) => [c._id, c.name]))
-    const catByProductName = new Map(
+    return new Map(
       products.map((p) => [p.name, p.category ? (catIdMap.get(p.category) ?? "Other") : "Other"])
     )
+  }, [products, categories])
+
+  // Options stay keyed off the full category list rather than what happens to
+  // have sold, so the dropdown doesn't reshuffle as the period changes.
+  // "Other" only appears when something actually landed in that bucket.
+  const productCategoryOptions = useMemo(() => {
+    const names = categories.map((c) => c.name).sort((a, b) => a.localeCompare(b))
+    const hasOther = topProducts.some((p) => (catByProductName.get(p.label) ?? "Other") === "Other")
+    return hasOther ? [...names, "Other"] : names
+  }, [categories, topProducts, catByProductName])
+
+  const productsFiltered = productQuery.trim() !== "" || productCategory !== ""
+
+  const visibleProducts = useMemo(() => {
+    const q = productQuery.trim().toLowerCase()
+    return topProducts.filter((p) => {
+      if (q && !p.label.toLowerCase().includes(q)) return false
+      if (productCategory && (catByProductName.get(p.label) ?? "Other") !== productCategory) return false
+      return true
+    })
+  }, [topProducts, catByProductName, productQuery, productCategory])
+
+  // Category breakdown — qty sold + revenue
+  const categoryRevenue = useMemo(() => {
     const map = new Map<string, { qty: number; revenue: number }>()
     for (const o of curOrders) {
       for (const item of o.items) {
@@ -490,7 +519,7 @@ export default function DashboardPage() {
     return [...map.entries()]
       .sort((a, b) => b[1].qty - a[1].qty)
       .map(([label, d]) => ({ label, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
-  }, [curOrders, products, categories])
+  }, [curOrders, catByProductName])
 
   // Peak hours — always all-time for enough signal, so the counts come from the
   // server aggregate rather than the period-scoped orders held here.
@@ -644,16 +673,65 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* 296px is the trend card's natural height in day mode (p-5 twice +
+            title + mb-4 + the 220px chart), so both cards in this row end on
+            the same edge. Keep the two in step if either ever changes. */}
         <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-2 lg:max-h-[296px]">
-          <p className="mb-4 shrink-0 text-sm font-semibold text-[var(--text-h)]">
+          <p className="mb-3 shrink-0 text-sm font-semibold text-[var(--text-h)]">
             By Product{" "}
-            <span className="font-normal text-[var(--text)]">· {periodLabel(dateMode, datePick)}</span>
+            <span className="font-normal text-[var(--text)]">
+              · {periodLabel(dateMode, datePick)}
+              {productsFiltered && ` · ${visibleProducts.length} of ${topProducts.length}`}
+            </span>
           </p>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+
+          {topProducts.length > 0 && (
+            <div className="mb-3 flex shrink-0 items-center gap-2 lg:pr-2.5">
+              <SearchBox
+                dense
+                value={productQuery}
+                onChange={setProductQuery}
+                placeholder="Search product"
+                className="min-w-0 flex-1"
+              />
+              <select
+                value={productCategory}
+                onChange={(e) => setProductCategory(e.target.value)}
+                aria-label="Filter by category"
+                className={`${selectDenseCls} min-w-0 max-w-[45%] shrink`}
+              >
+                <option value="">All categories</option>
+                {productCategoryOptions.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* A classic scrollbar eats layout width from this list but not from
+              the filter row above, which left their right edges out of line.
+              scrollbar-gutter:stable reserves the space whether or not the
+              list actually overflows, and a thin bar makes that reserved
+              width ≈ the pr-2.5 the filter row carries, so the count column,
+              the bars and the category select all end on the same edge.
+              Both are lg-only: the height cap that makes this scroll is also
+              lg-only, so below that a reserved gutter would just dent the
+              right padding and leave the card visibly lopsided. */}
+          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] lg:[scrollbar-gutter:stable]">
             {topProducts.length === 0 ? (
               <p className="text-sm text-[var(--text)]">No orders yet for this period.</p>
+            ) : visibleProducts.length === 0 ? (
+              <p className="text-sm text-[var(--text)]">
+                No products match.{" "}
+                <button
+                  onClick={() => { setProductQuery(""); setProductCategory("") }}
+                  className="cursor-pointer font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                >
+                  Clear filters
+                </button>
+              </p>
             ) : (
-              <RankList items={topProducts} valueFmt={(v) => `${v} sold`} />
+              <RankList items={visibleProducts} valueFmt={(v) => `${v} sold`} />
             )}
           </div>
         </div>
