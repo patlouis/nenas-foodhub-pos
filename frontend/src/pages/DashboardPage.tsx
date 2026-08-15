@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { Order, Product, Category, StockAdjustment, Expense } from "../types"
 import { wastageReasonLabel } from "../types"
 import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi, expensesApi } from "../api"
@@ -229,6 +229,79 @@ function RankList({
           {item.sub && <p className="text-[11px] text-[var(--text)]">{item.sub}</p>}
         </div>
       ))}
+    </div>
+  )
+}
+
+// A native <select> pops its list wherever the browser decides — upward when
+// it judges there's more room above, which happens once this card sits low in
+// a tablet viewport. This renders the menu itself, anchored with top-full, so
+// it always drops downward. Trade-off: no OS picker on touch devices.
+function CategoryFilter({
+  value, onChange, options,
+}: {
+  value: string
+  onChange: (next: string) => void
+  options: string[]
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative min-w-0 shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Filter by category"
+        className={`${selectDenseCls} flex max-w-[9.5rem] items-center gap-1.5`}
+      >
+        <span className="truncate">{value || "All categories"}</span>
+        <svg viewBox="0 0 20 20" fill="none" className="h-3 w-3 shrink-0 opacity-70" aria-hidden>
+          <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute right-0 top-full z-20 mt-1 max-h-52 w-44 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-lg [scrollbar-width:thin]"
+        >
+          {["", ...options].map((opt) => (
+            <button
+              key={opt || "__all"}
+              type="button"
+              role="option"
+              aria-selected={value === opt}
+              onClick={() => { onChange(opt); setOpen(false) }}
+              className={`block w-full cursor-pointer truncate rounded-md px-2.5 py-1.5 text-left text-xs transition ${
+                value === opt
+                  ? "bg-[var(--accent-bg)] font-medium text-[var(--accent)]"
+                  : "text-[var(--text-h)] hover:bg-[var(--social-bg)]"
+              }`}
+            >
+              {opt || "All categories"}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -676,8 +749,14 @@ export default function DashboardPage() {
         {/* 296px is the trend card's natural height in day mode (p-5 twice +
             title + mb-4 + the 220px chart), so both cards in this row end on
             the same edge. Keep the two in step if either ever changes. */}
-        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-2 lg:max-h-[296px]">
-          <p className="mb-3 shrink-0 text-sm font-semibold text-[var(--text-h)]">
+        {/* pr-2.5 rather than the p-5 the other cards use: the list below
+            permanently reserves a ~10px scrollbar gutter, so trimming the
+            card's own right padding by the same amount leaves the visual gap
+            even on both sides. Every row then carries a matching pr-2.5 and
+            they share one right edge at every width — no breakpoint involved,
+            which is what went wrong when this was lg-only. */}
+        <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 pr-2.5 lg:col-span-2 lg:max-h-[296px]">
+          <p className="mb-3 shrink-0 pr-2.5 text-sm font-semibold text-[var(--text-h)]">
             By Product{" "}
             <span className="font-normal text-[var(--text)]">
               · {periodLabel(dateMode, datePick)}
@@ -686,7 +765,7 @@ export default function DashboardPage() {
           </p>
 
           {topProducts.length > 0 && (
-            <div className="mb-3 flex shrink-0 items-center gap-2 lg:pr-2.5">
+            <div className="mb-3 flex shrink-0 items-center gap-2 pr-2.5">
               <SearchBox
                 dense
                 value={productQuery}
@@ -694,30 +773,18 @@ export default function DashboardPage() {
                 placeholder="Search product"
                 className="min-w-0 flex-1"
               />
-              <select
+              <CategoryFilter
                 value={productCategory}
-                onChange={(e) => setProductCategory(e.target.value)}
-                aria-label="Filter by category"
-                className={`${selectDenseCls} min-w-0 max-w-[45%] shrink`}
-              >
-                <option value="">All categories</option>
-                {productCategoryOptions.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+                onChange={setProductCategory}
+                options={productCategoryOptions}
+              />
             </div>
           )}
 
-          {/* A classic scrollbar eats layout width from this list but not from
-              the filter row above, which left their right edges out of line.
-              scrollbar-gutter:stable reserves the space whether or not the
-              list actually overflows, and a thin bar makes that reserved
-              width ≈ the pr-2.5 the filter row carries, so the count column,
-              the bars and the category select all end on the same edge.
-              Both are lg-only: the height cap that makes this scroll is also
-              lg-only, so below that a reserved gutter would just dent the
-              right padding and leave the card visibly lopsided. */}
-          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] lg:[scrollbar-gutter:stable]">
+          {/* The gutter is reserved at every width, not just where the list
+              actually scrolls, so the right edge never shifts between
+              breakpoints or when filtering drops the list below the cap. */}
+          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]">
             {topProducts.length === 0 ? (
               <p className="text-sm text-[var(--text)]">No orders yet for this period.</p>
             ) : visibleProducts.length === 0 ? (
