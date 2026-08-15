@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
 type ModalProps = {
   open: boolean
@@ -7,19 +7,38 @@ type ModalProps = {
   children: React.ReactNode
 }
 
+// Stack of open modals so nesting works: Escape closes only the topmost, and
+// the scroll lock survives until the last one closes.
+const openModals: object[] = []
+
 export default function Modal({ open, onClose, title, children }: ModalProps) {
+  // Ref so the effect depends only on `open`; an inline onClose arrow changes
+  // identity every render and would churn the stack.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
   useEffect(() => {
     if (!open) return
+    const token = {}
+    openModals.push(token)
+    document.body.style.overflow = "hidden"
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key === "Escape" && openModals[openModals.length - 1] === token) {
+        onCloseRef.current()
+      }
     }
     document.addEventListener("keydown", onKey)
-    document.body.style.overflow = "hidden"
+
     return () => {
       document.removeEventListener("keydown", onKey)
-      document.body.style.overflow = ""
+      const i = openModals.indexOf(token)
+      if (i !== -1) openModals.splice(i, 1)
+      if (openModals.length === 0) document.body.style.overflow = ""
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
