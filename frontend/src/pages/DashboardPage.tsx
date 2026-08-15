@@ -244,7 +244,9 @@ export default function DashboardPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [peakHourCounts, setPeakHourCounts] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dateMode, setDateMode] = useState<DateMode>("day")
   const [datePick, setDatePick] = useState(() => currentBusinessDate())
@@ -258,30 +260,6 @@ export default function DashboardPage() {
     else                       setDatePick("")
   }
 
-  useEffect(() => {
-    ;(async () => {
-      try {
-        // Analytics need the full history/catalog, not one page of it.
-        const [o, p, c, w, ex] = await Promise.all([
-          ordersApi.list({ limit: 1000 }),
-          productsApi.list({ limit: 500 }),
-          categoriesApi.list(),
-          stockAdjustmentsApi.list({ type: "wastage", limit: 1000 }),
-          expensesApi.list({ limit: 1000 }),
-        ])
-        setOrders(o.data)
-        setProducts(p.data)
-        setCategories(c)
-        setWastageAdjs(w.data)
-        setExpenses(ex.data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load dashboard")
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [])
-
   const [curFrom, curTo] = useMemo(
     () => (datePick ? getRange(dateMode, datePick) : [new Date(0), new Date()]),
     [dateMode, datePick],
@@ -290,6 +268,58 @@ export default function DashboardPage() {
     () => dateMode === "all" ? [new Date(0), new Date(0)] : getPrevRange(dateMode, curFrom),
     [dateMode, curFrom],
   )
+
+  // Catalog and all-time figures don't depend on the selected period.
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const [p, c, ph] = await Promise.all([
+          productsApi.list({ limit: 500 }),
+          categoriesApi.list(),
+          ordersApi.peakHours(Intl.DateTimeFormat().resolvedOptions().timeZone),
+        ])
+        setProducts(p.data)
+        setCategories(c)
+        setPeakHourCounts(ph.hours)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load dashboard")
+      }
+    })()
+  }, [])
+
+  // Period data is fetched scoped to the selected range instead of pulling the
+  // whole history down and filtering in the browser. The window starts at the
+  // previous period because the KPI cards compare against it.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setRefreshing(true)
+      const range = dateMode === "all" ? {} : { from: prvFrom.toISOString(), to: curTo.toISOString() }
+      try {
+        const [o, w, ex] = await Promise.all([
+          ordersApi.list({ limit: 1000, ...range }),
+          stockAdjustmentsApi.list({ type: "wastage", limit: 1000, ...range }),
+          expensesApi.list({ limit: 1000, ...range }),
+        ])
+        if (cancelled) return
+        setOrders(o.data)
+        setWastageAdjs(w.data)
+        setExpenses(ex.data)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load dashboard")
+      } finally {
+        // A stale response must not clear the spinner for the request that
+        // superseded it.
+        if (!cancelled) {
+          setRefreshing(false)
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [dateMode, prvFrom, curTo])
 
   // Voided and staff meal orders are excluded from all revenue/profit metrics.
   const activeOrders = useMemo(
@@ -462,13 +492,9 @@ export default function DashboardPage() {
       .map(([label, d]) => ({ label, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
   }, [curOrders, products, categories])
 
-  // Peak hours — always all-time for enough signal
+  // Peak hours — always all-time for enough signal, so the counts come from the
+  // server aggregate rather than the period-scoped orders held here.
   const peakHours = useMemo(() => {
-    const buckets = new Array<number>(24).fill(0)
-    for (const o of activeOrders) {
-      if (!o.createdAt) continue
-      buckets[new Date(o.createdAt).getHours()]++
-    }
     const hourLabel = (h: number) =>
       h === 0 ? "12am" : h < 12 ? `${h}am` : h === 12 ? "12pm" : `${h - 12}pm`
     const indices = [...Array.from({ length: 18 }, (_, i) => i + 6), 0]
@@ -477,10 +503,10 @@ export default function DashboardPage() {
       // 12am bar folds in the after-midnight closing tail (matches the
       // Hourly Revenue chart).
       value: h === 0
-        ? buckets.slice(0, BUSINESS_DAY_CUTOFF_HOUR).reduce((s, n) => s + n, 0)
-        : buckets[h],
+        ? peakHourCounts.slice(0, BUSINESS_DAY_CUTOFF_HOUR).reduce((s, n) => s + n, 0)
+        : peakHourCounts[h] ?? 0,
     }))
-  }, [activeOrders])
+  }, [peakHourCounts])
 
   // Inventory alerts
   const outOfStock = useMemo(
@@ -512,7 +538,10 @@ export default function DashboardPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="m-0">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-[var(--text)]">{periodLabel(dateMode, datePick)}</p>
+          <p className="mt-0.5 text-sm text-[var(--text)]">
+            {periodLabel(dateMode, datePick)}
+            {refreshing && <span className="ml-2 text-xs opacity-70">updating…</span>}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

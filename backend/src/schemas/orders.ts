@@ -19,6 +19,21 @@ export const createOrderSchema = z.object({
   tableNumber: z.number().int().min(1).max(6).optional(),
 });
 
+// Intl throws RangeError on an unknown zone — the cheapest reliable check,
+// and it keeps a bad value from reaching the aggregation pipeline.
+function isValidTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const peakHoursQuerySchema = z.object({
+  timezone: z.string().default("UTC").refine(isValidTimeZone, "Invalid timezone"),
+});
+
 export const listOrdersQuerySchema = paginationQuerySchema(1000).extend({
   q: z.string().trim().optional(),
   from: z.string().optional(),

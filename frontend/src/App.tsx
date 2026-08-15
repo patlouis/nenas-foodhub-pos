@@ -15,10 +15,13 @@ import { useTheme } from "./hooks/useTheme"
 import { useAuth } from "./auth"
 import { WAKING_UP_EVENT, WAKE_COMPLETE_EVENT } from "./api"
 
+// Raised only for requests the server could genuinely be asleep for (see
+// couldBeColdStart); ordinary slow responses stay with each page's own
+// loading state, so this banner means what it says.
 function WakingUpBanner() {
   return (
     <div className="fixed inset-x-0 top-0 z-50 bg-amber-500 py-2 px-4 text-center text-sm font-medium text-white shadow-md">
-      Server is waking up — please wait up to 30 seconds…
+      Server is waking up — this can take up to a minute…
     </div>
   )
 }

@@ -2,6 +2,7 @@ import type {
   Product, NewProduct, User, NewUser, Category, NewCategory, Order, NewOrderItem, Paginated, StockAdjustment, Expense,
   Supply, NewSupply, SupplyAdjustment,
 } from "./types"
+import { couldBeColdStart, COLD_START_HINT_MS } from "./coldStart"
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? ""
 
@@ -18,23 +19,36 @@ const SUPPLY_ADJUSTMENTS = `${BASE}/api/supply-adjustments`
 // drops the app back to the login screen.
 export const AUTH_EXPIRED_EVENT = "auth:expired"
 
-// Fired when any request takes > 5 s (server is cold-starting on Render free
-// tier). WAKE_COMPLETE fires once all slow requests finish.
+// Fired when a long request is one the server could actually be asleep for.
+// Ordinary slowness never raises these — the calling page's own loading state
+// covers that. WAKE_COMPLETE fires once the last such request finishes.
 export const WAKING_UP_EVENT = "server:waking-up"
 export const WAKE_COMPLETE_EVENT = "server:wake-complete"
 
-let slowCount = 0
+// Any response proves the server is running, whatever its status code, so a
+// failed request still counts as evidence that it is awake.
+let lastResponseAt: number | null = null
+let wakingCount = 0
 
 function watchedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  let timerFired = false
+  let counted = false
+  // Plausibility is judged when the timer fires, not when the request starts:
+  // by then a sibling request may have come back and settled the question.
   const timer = setTimeout(() => {
-    timerFired = true
-    if (++slowCount === 1) window.dispatchEvent(new Event(WAKING_UP_EVENT))
-  }, 5000)
-  return fetch(input, init).finally(() => {
-    clearTimeout(timer)
-    if (timerFired && --slowCount === 0) window.dispatchEvent(new Event(WAKE_COMPLETE_EVENT))
-  })
+    if (!couldBeColdStart(lastResponseAt, Date.now())) return
+    counted = true
+    if (++wakingCount === 1) window.dispatchEvent(new Event(WAKING_UP_EVENT))
+  }, COLD_START_HINT_MS)
+
+  return fetch(input, init)
+    .then((res) => {
+      lastResponseAt = Date.now()
+      return res
+    })
+    .finally(() => {
+      clearTimeout(timer)
+      if (counted && --wakingCount === 0) window.dispatchEvent(new Event(WAKE_COMPLETE_EVENT))
+    })
 }
 
 export function clearStoredAuth() {
@@ -344,6 +358,13 @@ export const supplyAdjustmentsApi = {
 export const ordersApi = {
   list: (params?: OrderListParams) =>
     watchedFetch(`${ORDERS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Order>>),
+
+  // All-time order counts per hour, aggregated server-side so the dashboard
+  // doesn't have to download every order to draw the peak-hours chart.
+  peakHours: (timezone: string) =>
+    watchedFetch(`${ORDERS}/peak-hours${buildQuery({ timezone })}`, { headers: authHeaders() }).then(
+      handle<{ hours: number[] }>
+    ),
 
   create: (items: NewOrderItem[], paymentMethod: "cash" | "gcash" = "cash", orderType: "sale" | "staff_meal" = "sale", staffMealRecipient?: string, tableNumber?: number) =>
     watchedFetch(ORDERS, {
