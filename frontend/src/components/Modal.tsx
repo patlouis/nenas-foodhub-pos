@@ -48,12 +48,17 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
+      {/* Capped and scrollable: the body scroll is locked while a modal is
+          open, so anything taller than the viewport would be unreachable —
+          including the buttons. dvh so mobile browser chrome is accounted for. */}
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-[var(--shadow)]"
+        className="relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-[var(--shadow)] [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]"
       >
-        <div className="mb-5 flex items-center justify-between">
+        {/* Sticky so the title and close stay put when the body scrolls. The
+            negative margins let it span the panel's padding. */}
+        <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-5 flex items-center justify-between bg-[var(--bg)] px-6 pb-3 pt-6">
           <h2 className="m-0">{title}</h2>
           <button
             onClick={onClose}
