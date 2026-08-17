@@ -72,11 +72,24 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
   }
 });
 
+// Counting units and selling halves contradict each other: a half draws down
+// half a unit, which stock can't represent, so it would silently decrement a
+// whole one. Halves are for bulk-portioned dishes, which don't carry a count.
+const HALF_TRACKED_ERROR = "A product that tracks stock can't be sold as a half serving";
+
+function halfConflictsWithStock(stock: number | null | undefined, halfPrice: number | null | undefined) {
+  return stock != null && halfPrice != null;
+}
+
 // POST /api/products — create (admin only)
 router.post("/", requireAuth, requireAdmin, validateBody(createProductSchema), async (req: Request, res: Response) => {
   try {
     const data = { ...req.body };
     if (!data.sku) data.sku = undefined;
+    // stock defaults to 0 (tracked) when omitted, so an absent field still counts.
+    if (halfConflictsWithStock(data.stock === undefined ? 0 : data.stock, data.halfPrice)) {
+      return res.status(400).json({ error: HALF_TRACKED_ERROR });
+    }
     const product = await Product.create(data);
     if (product.stock !== null && product.stock > 0) {
       await StockAdjustment.create({
@@ -103,6 +116,15 @@ router.put("/:id", requireAuth, requireAdmin, validateBody(updateProductSchema),
   try {
     const data = { ...req.body };
     if (!data.sku) data.sku = undefined;
+    // Checked against the merged result, not the patch: turning tracking on
+    // without mentioning halfPrice must still be caught, and vice versa.
+    const existing = await Product.findById(req.params.id, { stock: 1, halfPrice: 1 });
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    const nextStock = "stock" in data ? data.stock : existing.stock;
+    const nextHalf = "halfPrice" in data ? data.halfPrice : existing.halfPrice;
+    if (halfConflictsWithStock(nextStock, nextHalf)) {
+      return res.status(400).json({ error: HALF_TRACKED_ERROR });
+    }
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       data,

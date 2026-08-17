@@ -1,4 +1,5 @@
 import type { Order } from "../types"
+import { orderItemLabel } from "../types"
 
 const STORE_NAME = "NENAS FOODHUB"
 const STORE_ADDRESS_1 = "Purok 1 Barangay Maburak"
@@ -78,7 +79,7 @@ function buildReceiptHtml(order: Order): string {
   lines.push(row("ITEM", "AMOUNT"))
   for (const item of order.items) {
     const lineTotal = (item.lineTotal ?? item.price * item.quantity).toFixed(2)
-    lines.push(esc(item.name))
+    lines.push(esc(orderItemLabel(item)))
     // No leading indent — this line stays flush with the product name above it.
     lines.push(row(`${item.quantity} x ${item.price.toFixed(2)}`, lineTotal))
   }

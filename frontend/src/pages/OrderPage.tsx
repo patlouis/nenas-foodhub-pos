@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { Product, Category, User, TableKey } from "../types"
+import type { Product, Category, User, TableKey, Portion } from "../types"
 import { TABLE_KEYS } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
 import { getChange } from "../tender"
 import { hasStockFor, isUnavailable, stockLabel } from "../stock"
-import { useTableCarts } from "../hooks/useTableCarts"
+import { useTableCarts, type CartLine } from "../hooks/useTableCarts"
 import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls, PrinterIcon, inputCls } from "../components/ui"
 import { printReceipt } from "../utils/printReceipt"
 import Modal from "../components/Modal"
 
 function tableLabel(t: TableKey): string {
   return t === "order" ? "Counter" : `Table ${t}`
+}
+
+// What one unit of this line costs — the half rate when it's a half serving.
+function unitPrice(l: CartLine): number {
+  return l.portion === "half" ? (l.product.halfPrice ?? l.product.price) : l.product.price
 }
 
 // h-10/w-10 (40px) — a touch-friendly size that still keeps cart rows compact.
@@ -202,10 +207,13 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       })
   }, [products, categories, category, query])
 
-  const qtyInCart = useMemo(
-    () => new Map(cart.map((l) => [l.product._id, l.quantity])),
-    [cart]
-  )
+  // Summed across portions: the card badge shows the whole dish's count, so a
+  // full and a half of the same thing read as 2, not whichever line came last.
+  const qtyInCart = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const l of cart) counts.set(l.product._id, (counts.get(l.product._id) ?? 0) + l.quantity)
+    return counts
+  }, [cart])
 
   // When browsing "All" with no search active, split the menu into per-category
   // sections (available items only) plus one trailing "Unavailable" section for
@@ -246,14 +254,14 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     return sections
   }, [visibleProducts, category, query, categories, products])
 
-  function handleAdd(p: Product) {
+  function handleAdd(p: Product, portion: Portion = "full") {
     setSuccess(null)
-    addToCart(p)
+    addToCart(p, portion)
     addTick.current += 1
     setJustAdded({ id: p._id, tick: addTick.current })
   }
 
-  const total = cart.reduce((sum, l) => sum + getLineTotal(l.product, l.quantity), 0)
+  const total = cart.reduce((sum, l) => sum + getLineTotal(l.product, l.quantity, l.portion), 0)
   const itemCount = cart.reduce((sum, l) => sum + l.quantity, 0)
 
   // Change is only meaningful for cash: GCash is transferred to the exact
@@ -265,13 +273,16 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     const inCart = qtyInCart.get(p._id) ?? 0
     const unavailable = isUnavailable(p)
     const hasDiscount = p.discountQty && p.discountQty >= 2 && p.discountPrice != null
+    // The ½ control has to live outside the card button — a button can't nest
+    // inside another button — so it's a sibling positioned over the corner.
+    const offersHalf = p.halfPrice != null && !unavailable
     return (
+      <div key={p._id} className="relative">
       <button
-        key={p._id}
         onClick={() => handleAdd(p)}
         disabled={unavailable}
         className={
-          "relative flex flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
+          "relative flex w-full flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
           (unavailable
             ? "cursor-not-allowed border-[var(--border)] opacity-50"
             : "cursor-pointer border-[var(--border)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-bg)]")
@@ -301,6 +312,18 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           {p.status === "disabled" ? "Unavailable" : stockLabel(p.stock)}
         </span>
       </button>
+
+      {offersHalf && (
+        <button
+          onClick={() => handleAdd(p, "half")}
+          aria-label={`Add half ${p.name} — ₱${p.halfPrice!.toFixed(2)}`}
+          title={`Half · ₱${p.halfPrice!.toFixed(2)}`}
+          className="absolute bottom-2.5 right-2.5 flex h-9 cursor-pointer items-center justify-center rounded-lg border border-[var(--accent-border)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--accent)] transition hover:bg-[var(--accent)] hover:text-white"
+        >
+          Half
+        </button>
+      )}
+      </div>
     )
   }
 
@@ -313,7 +336,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       const tableNumber =
         !isStaffMeal && activeTable !== "order" ? Number(activeTable) : undefined
       const order = await ordersApi.create(
-        cart.map((l) => ({ productId: l.product._id, quantity: l.quantity })),
+        cart.map((l) => ({ productId: l.product._id, quantity: l.quantity, portion: l.portion })),
         paymentMethod,
         isStaffMeal ? "staff_meal" : "sale",
         isStaffMeal && staffMealRecipient ? staffMealRecipient : undefined,
@@ -474,15 +497,20 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           ) : (
             <ul className="flex flex-col gap-4">
               {cart.map((l) => (
-                <li key={l.product._id} className="flex items-center gap-3">
+                <li key={l.key} className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-[var(--text-h)]">
                       {l.product.name}
+                      {l.portion === "half" && (
+                        <span className="ml-1.5 rounded bg-[var(--accent-bg)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent)]">
+                          Half
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs tabular-nums text-[var(--text)]">
-                      ₱{l.product.price.toFixed(2)} each
+                      ₱{unitPrice(l).toFixed(2)} each
                     </p>
-                    {l.product.discountQty && l.quantity >= l.product.discountQty && l.product.discountPrice != null && (
+                    {l.portion === "full" && l.product.discountQty && l.quantity >= l.product.discountQty && l.product.discountPrice != null && (
                       <p className="text-xs text-green-600">
                         {Math.floor(l.quantity / l.product.discountQty)}× deal applied
                       </p>
@@ -491,7 +519,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => setQty(l.product._id, l.quantity - 1)}
+                      onClick={() => setQty(l, l.quantity - 1)}
                       aria-label={`Decrease ${l.product.name}`}
                       className={qtyBtnCls}
                     >
@@ -501,7 +529,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                       {l.quantity}
                     </span>
                     <button
-                      onClick={() => setQty(l.product._id, l.quantity + 1)}
+                      onClick={() => setQty(l, l.quantity + 1)}
                       disabled={!hasStockFor(l.product.stock, l.quantity + 1)}
                       aria-label={`Increase ${l.product.name}`}
                       className={qtyBtnCls}
@@ -511,11 +539,11 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                   </div>
 
                   <span className="w-16 shrink-0 text-right tabular-nums text-[var(--text-h)]">
-                    ₱{getLineTotal(l.product, l.quantity).toFixed(2)}
+                    ₱{getLineTotal(l.product, l.quantity, l.portion).toFixed(2)}
                   </span>
 
                   <button
-                    onClick={() => removeLine(l.product._id)}
+                    onClick={() => removeLine(l)}
                     aria-label={`Remove ${l.product.name}`}
                     className="shrink-0 cursor-pointer text-[var(--text)] transition hover:text-red-500"
                   >
@@ -617,13 +645,16 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
           <ul className="flex flex-col gap-2 border-y border-[var(--border)] py-3">
             {cart.map((l) => (
-              <li key={l.product._id} className="flex items-baseline gap-3">
-                <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">{l.product.name}</span>
+              <li key={l.key} className="flex items-baseline gap-3">
+                <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">
+                  {l.product.name}
+                  {l.portion === "half" && <span className="text-[var(--accent)]"> · Half</span>}
+                </span>
                 <span className="shrink-0 text-sm tabular-nums text-[var(--text)]">
-                  {l.quantity} × ₱{l.product.price.toFixed(2)}
+                  {l.quantity} × ₱{unitPrice(l).toFixed(2)}
                 </span>
                 <span className="w-20 shrink-0 text-right tabular-nums text-[var(--text-h)]">
-                  ₱{getLineTotal(l.product, l.quantity).toFixed(2)}
+                  ₱{getLineTotal(l.product, l.quantity, l.portion).toFixed(2)}
                 </span>
               </li>
             ))}

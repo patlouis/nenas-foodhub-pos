@@ -9,6 +9,11 @@ export interface IProduct {
   stock: number | null;
   category?: mongoose.Types.ObjectId;
   status: "active" | "disabled";
+  // Set halfPrice to offer this dish as a half serving. One product, one
+  // availability state — a separate "(Half)" product would need its status
+  // kept in step with this one by hand.
+  halfPrice?: number | null;
+  halfCostPrice?: number | null;
   costPrice?: number | null;
   discountQty?: number | null;
   discountPrice?: number | null;
@@ -24,6 +29,8 @@ const productSchema = new mongoose.Schema<IProduct>(
     stock: { type: Number, default: 0, min: 0 },  // null = untracked
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
     status: { type: String, enum: ["active", "disabled"], default: "active" },
+    halfPrice: { type: Number, default: null, min: 0 },
+    halfCostPrice: { type: Number, default: null, min: 0 },
     costPrice: { type: Number, default: null, min: 0 },
     discountQty: { type: Number, default: null, min: 2 },
     discountPrice: { type: Number, default: null, min: 0 },

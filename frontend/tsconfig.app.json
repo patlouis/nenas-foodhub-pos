@@ -6,6 +6,8 @@
     "module": "esnext",
     "types": ["vite/client"],
     "skipLibCheck": true,
+    /* For the shared pricing truth table at the repo root. */
+    "resolveJsonModule": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",

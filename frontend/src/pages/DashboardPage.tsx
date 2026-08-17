@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { Order, Product, Category, StockAdjustment, Expense } from "../types"
-import { wastageReasonLabel } from "../types"
+import { wastageReasonLabel, orderItemLabel } from "../types"
 import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi, expensesApi } from "../api"
 import { ErrorBanner, PageShell, SearchBox, selectDenseCls } from "../components/ui"
 import { hasStock } from "../stock"
@@ -447,11 +447,17 @@ export default function DashboardPage() {
     () => new Map(products.map((p) => [p.name, p.costPrice ?? null])),
     [products],
   )
+  // Snapshotted cost first, falling back to the current catalog for legacy
+  // orders. Never fall back for a half serving: the catalog figure is the full
+  // portion's cost, so using it would report a wild loss on every half. A half
+  // line always carries its own snapshot, even when that snapshot is null.
+  const itemCost = (item: Order["items"][number]) =>
+    item.costPrice ?? (item.portion === "half" ? null : costByName.get(item.name) ?? null)
+
   const calcProfit = (orderList: Order[]) =>
     orderList.reduce((sum, o) => {
       for (const item of o.items) {
-        // Use snapshotted costPrice if available; fall back to current catalog for legacy orders
-        const cost = item.costPrice ?? costByName.get(item.name) ?? null
+        const cost = itemCost(item)
         if (cost != null) sum += lt(item) - cost * item.quantity
       }
       return sum
@@ -462,9 +468,7 @@ export default function DashboardPage() {
     const missing = new Set<string>()
     for (const o of curOrders) {
       for (const item of o.items) {
-        if ((item.costPrice ?? costByName.get(item.name) ?? null) == null) {
-          missing.add(item.name)
-        }
+        if (itemCost(item) == null) missing.add(orderItemLabel(item))
       }
     }
     return missing.size
@@ -538,16 +542,21 @@ export default function DashboardPage() {
 
   // Top products
   const topProducts = useMemo(() => {
-    const map = new Map<string, { qty: number; revenue: number }>()
+    // Halves report as their own row: they sell at a different price and
+    // margin, so folding them into the full serving would hide both. The raw
+    // product name rides along because the category lookup is keyed on it —
+    // "Adobo (half)" would miss and fall into Other.
+    const map = new Map<string, { name: string; qty: number; revenue: number }>()
     for (const o of curOrders) {
       for (const item of o.items) {
-        const e = map.get(item.name) ?? { qty: 0, revenue: 0 }
-        map.set(item.name, { qty: e.qty + item.quantity, revenue: e.revenue + lt(item) })
+        const label = orderItemLabel(item)
+        const e = map.get(label) ?? { name: item.name, qty: 0, revenue: 0 }
+        map.set(label, { name: item.name, qty: e.qty + item.quantity, revenue: e.revenue + lt(item) })
       }
     }
     return [...map.entries()]
       .sort((a, b) => b[1].qty - a[1].qty)
-      .map(([name, d]) => ({ label: name, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
+      .map(([label, d]) => ({ label, name: d.name, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
   }, [curOrders])
 
   // Product name → category name. Order items carry a snapshot of the product
@@ -565,7 +574,7 @@ export default function DashboardPage() {
   // "Other" only appears when something actually landed in that bucket.
   const productCategoryOptions = useMemo(() => {
     const names = categories.map((c) => c.name).sort((a, b) => a.localeCompare(b))
-    const hasOther = topProducts.some((p) => (catByProductName.get(p.label) ?? "Other") === "Other")
+    const hasOther = topProducts.some((p) => (catByProductName.get(p.name) ?? "Other") === "Other")
     return hasOther ? [...names, "Other"] : names
   }, [categories, topProducts, catByProductName])
 
@@ -575,7 +584,7 @@ export default function DashboardPage() {
     const q = productQuery.trim().toLowerCase()
     return topProducts.filter((p) => {
       if (q && !p.label.toLowerCase().includes(q)) return false
-      if (productCategory && (catByProductName.get(p.label) ?? "Other") !== productCategory) return false
+      if (productCategory && (catByProductName.get(p.name) ?? "Other") !== productCategory) return false
       return true
     })
   }, [topProducts, catByProductName, productQuery, productCategory])

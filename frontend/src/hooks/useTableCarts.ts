@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { Product, TableKey } from "../types"
+import type { Portion, Product, TableKey } from "../types"
 import { TABLE_KEYS } from "../types"
 import { clampToStock, hasStockFor, isUnavailable } from "../stock"
 
-export type CartLine = { product: Product; quantity: number }
+// A line is identified by dish *and* portion: a full and a half of the same
+// dish are priced differently and sit on separate rows.
+export function lineKey(productId: string, portion: Portion): string {
+  return `${productId}:${portion}`
+}
+
+export type CartLine = { key: string; product: Product; portion: Portion; quantity: number }
 
 // The persisted source of truth holds only ids + quantities, never product
 // snapshots, so prices and stock can't go stale — they're resolved against the
 // live catalog on every render.
-type RawLine = { productId: string; quantity: number }
+type RawLine = { productId: string; quantity: number; portion: Portion }
 type RawCarts = Record<TableKey, RawLine[]>
 
 const CARTS_KEY = "pos:tableCarts"
@@ -32,7 +38,12 @@ function readCarts(): RawCarts {
             (l): l is RawLine =>
               !!l && typeof l.productId === "string" && typeof l.quantity === "number" && l.quantity > 0,
           )
-          .map((l) => ({ productId: l.productId, quantity: l.quantity }))
+          // Carts parked before half servings existed have no portion.
+          .map((l) => ({
+            productId: l.productId,
+            quantity: l.quantity,
+            portion: l.portion === "half" ? "half" : "full",
+          }))
       }
     }
     return base
@@ -78,8 +89,13 @@ export function useTableCarts(products: Product[]) {
       for (const l of lines) {
         const product = byId.get(l.productId)
         if (!product || isUnavailable(product)) continue
+        // A parked half line is dropped if the dish has since stopped
+        // offering one, the same way an unavailable product is.
+        if (l.portion === "half" && product.halfPrice == null) continue
         const quantity = clampToStock(product.stock, l.quantity)
-        if (quantity > 0) out.push({ product, quantity })
+        if (quantity > 0) {
+          out.push({ key: lineKey(l.productId, l.portion), product, portion: l.portion, quantity })
+        }
       }
       return out
     },
@@ -97,37 +113,45 @@ export function useTableCarts(products: Product[]) {
   }, [resolve, rawCarts])
 
   const addToCart = useCallback(
-    (p: Product) => {
+    (p: Product, portion: Portion = "full") => {
       setRawCarts((prev) => {
         const lines = prev[activeTable]
-        const existing = lines.find((l) => l.productId === p._id)
+        const key = lineKey(p._id, portion)
+        const existing = lines.find((l) => lineKey(l.productId, l.portion) === key)
         if (existing) {
           if (!hasStockFor(p.stock, existing.quantity + 1)) return prev
           return {
             ...prev,
-            [activeTable]: lines.map((l) => (l.productId === p._id ? { ...l, quantity: l.quantity + 1 } : l)),
+            [activeTable]: lines.map((l) =>
+              lineKey(l.productId, l.portion) === key ? { ...l, quantity: l.quantity + 1 } : l,
+            ),
           }
         }
-        return { ...prev, [activeTable]: [...lines, { productId: p._id, quantity: 1 }] }
+        return { ...prev, [activeTable]: [...lines, { productId: p._id, quantity: 1, portion }] }
       })
     },
     [activeTable],
   )
 
+  // These take the resolved line rather than an id: a product id and a line
+  // key are both strings, so passing the wrong one would compile silently.
   const setQty = useCallback(
-    (productId: string, qty: number) => {
+    (line: CartLine, qty: number) => {
+      const key = line.key
       setRawCarts((prev) => {
         const lines = prev[activeTable]
         if (qty <= 0) {
-          return { ...prev, [activeTable]: lines.filter((l) => l.productId !== productId) }
+          return { ...prev, [activeTable]: lines.filter((l) => lineKey(l.productId, l.portion) !== key) }
         }
-        // An unknown product falls back to the requested qty, same as an
-        // untracked one — neither has a ceiling to clamp against.
-        const known = byId.get(productId)
-        const clamped = known ? clampToStock(known.stock, qty) : qty
         return {
           ...prev,
-          [activeTable]: lines.map((l) => (l.productId === productId ? { ...l, quantity: clamped } : l)),
+          [activeTable]: lines.map((l) => {
+            if (lineKey(l.productId, l.portion) !== key) return l
+            // An unknown product falls back to the requested qty, same as an
+            // untracked one — neither has a ceiling to clamp against.
+            const known = byId.get(l.productId)
+            return { ...l, quantity: known ? clampToStock(known.stock, qty) : qty }
+          }),
         }
       })
     },
@@ -135,10 +159,10 @@ export function useTableCarts(products: Product[]) {
   )
 
   const removeLine = useCallback(
-    (productId: string) => {
+    (line: CartLine) => {
       setRawCarts((prev) => ({
         ...prev,
-        [activeTable]: prev[activeTable].filter((l) => l.productId !== productId),
+        [activeTable]: prev[activeTable].filter((l) => lineKey(l.productId, l.portion) !== line.key),
       }))
     },
     [activeTable],

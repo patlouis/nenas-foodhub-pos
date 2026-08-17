@@ -114,6 +114,104 @@ describe("POST /api/orders", () => {
     expect(updated!.stock).toBe(0);
   });
 
+  it("prices a half serving from halfPrice and snapshots that rate", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await Product.create({
+      name: "Adobong Manok", price: 60, halfPrice: 35, costPrice: 30, halfCostPrice: 18, stock: null,
+    });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: product._id.toString(), quantity: 2, portion: "half" }] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.total).toBe(70); // 2 × 35, not 2 × 30
+    expect(res.body.items[0].portion).toBe("half");
+    expect(res.body.items[0].price).toBe(35);
+    expect(res.body.items[0].costPrice).toBe(18);
+  });
+
+  it("keeps a full and a half of the same dish as separate lines", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await Product.create({ name: "Adobong Manok", price: 60, halfPrice: 35, stock: null });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [
+          { productId: product._id.toString(), quantity: 1, portion: "full" },
+          { productId: product._id.toString(), quantity: 1, portion: "half" },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.total).toBe(95);
+  });
+
+  it("still merges duplicates of the same dish and portion", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await Product.create({ name: "Adobong Manok", price: 60, halfPrice: 35, stock: null });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [
+          { productId: product._id.toString(), quantity: 1, portion: "half" },
+          { productId: product._id.toString(), quantity: 2, portion: "half" },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].quantity).toBe(3);
+  });
+
+  it("refuses a half serving for a dish that doesn't offer one", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await createProduct({ name: "Yakult", stock: 10 });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: product._id.toString(), quantity: 1, portion: "half" }] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/not sold as a half serving/);
+  });
+
+  it("never applies the bulk deal to half servings", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await Product.create({
+      name: "Adobong Manok", price: 60, halfPrice: 35, discountQty: 3, discountPrice: 150, stock: null,
+    });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: product._id.toString(), quantity: 3, portion: "half" }] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.total).toBe(105); // 3 × 35, not the 150 full-serving deal
+  });
+
+  it("defaults to a full serving when no portion is sent", async () => {
+    const { token } = await loginAs("cashier");
+    const product = await Product.create({ name: "Adobong Manok", price: 60, halfPrice: 35, stock: null });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: product._id.toString(), quantity: 1 }] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.total).toBe(60);
+    expect(res.body.items[0].portion).toBe("full");
+  });
+
   it("rejects a malformed item via schema validation", async () => {
     const { token } = await loginAs("cashier");
     const res = await request(app)

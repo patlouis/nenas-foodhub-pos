@@ -1,0 +1,16 @@
+{
+  "_comment": "Shared truth table for line pricing. Read by BOTH backend/src/lib/pricing.test.ts and frontend/src/pricing.test.ts, because those two implementations are hand-mirrored and nothing else forces them to agree. If they drift, the cart previews one number and the customer is charged another. Add a case here rather than to either test file alone.",
+  "cases": [
+    { "name": "plain unit price with no discount", "product": { "price": 50 }, "qty": 3, "portion": "full", "expected": 150 },
+    { "name": "below the discount threshold", "product": { "price": 50, "discountQty": 3, "discountPrice": 120 }, "qty": 2, "portion": "full", "expected": 100 },
+    { "name": "exactly one discounted set", "product": { "price": 50, "discountQty": 3, "discountPrice": 120 }, "qty": 3, "portion": "full", "expected": 120 },
+    { "name": "full sets plus remainder at full price", "product": { "price": 50, "discountQty": 3, "discountPrice": 120 }, "qty": 7, "portion": "full", "expected": 290 },
+    { "name": "discountQty below 2 is not a real discount", "product": { "price": 50, "discountQty": 1, "discountPrice": 10 }, "qty": 5, "portion": "full", "expected": 250 },
+    { "name": "discount ignored with no discountPrice", "product": { "price": 50, "discountQty": 3, "discountPrice": null }, "qty": 6, "portion": "full", "expected": 300 },
+    { "name": "half priced from halfPrice, not half of price", "product": { "price": 60, "halfPrice": 35 }, "qty": 2, "portion": "half", "expected": 70 },
+    { "name": "half never takes the bulk deal", "product": { "price": 60, "halfPrice": 35, "discountQty": 3, "discountPrice": 150 }, "qty": 3, "portion": "half", "expected": 105 },
+    { "name": "full still takes the bulk deal on the same product", "product": { "price": 60, "halfPrice": 35, "discountQty": 3, "discountPrice": 150 }, "qty": 3, "portion": "full", "expected": 150 },
+    { "name": "missing halfPrice charges full rather than nothing", "product": { "price": 60 }, "qty": 1, "portion": "half", "expected": 60 },
+    { "name": "omitted portion is treated as full", "product": { "price": 60, "halfPrice": 35 }, "qty": 2, "portion": null, "expected": 120 }
+  ]
+}

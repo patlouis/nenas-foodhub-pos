@@ -4,7 +4,7 @@ import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { computeLineTotal } from "../lib/pricing.js";
+import { computeLineTotal, type Portion } from "../lib/pricing.js";
 import { createOrderSchema, listOrdersQuerySchema, peakHoursQuerySchema } from "../schemas/orders.js";
 import { paginate } from "../schemas/pagination.js";
 
@@ -105,32 +105,54 @@ router.get("/peak-hours", requireAuth, async (req: Request, res: Response, next:
 // prices are looked up server-side so a tampered request can't set its own
 // prices, and the stored snapshot always matches the catalog at sale time.
 router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Request, res: Response) => {
-  const rawItems = req.body.items as { productId: string; quantity: number }[];
+  const rawItems = req.body.items as { productId: string; quantity: number; portion: Portion }[];
   const paymentMethod: "cash" | "gcash" = req.body.paymentMethod ?? "cash";
   const orderType: "sale" | "staff_meal" = req.body.orderType ?? "sale";
   const staffMealRecipient: string | undefined = req.body.staffMealRecipient || undefined;
   // Staff meals aren't customer table sales, so they never carry a table number.
   const tableNumber: number | undefined = orderType === "staff_meal" ? undefined : req.body.tableNumber;
 
-  // Merge duplicate products into one line.
-  const qtyById = new Map<string, number>();
+  // Merge duplicates, keyed by product *and* portion: a full and a half of the
+  // same dish are priced differently and stay separate lines.
+  const qtyByKey = new Map<string, { productId: string; portion: Portion; quantity: number }>();
   for (const it of rawItems) {
-    qtyById.set(it.productId, (qtyById.get(it.productId) ?? 0) + it.quantity);
+    const portion: Portion = it.portion ?? "full";
+    const key = `${it.productId}:${portion}`;
+    const existing = qtyByKey.get(key);
+    if (existing) existing.quantity += it.quantity;
+    else qtyByKey.set(key, { productId: it.productId, portion, quantity: it.quantity });
   }
-  const items = [...qtyById.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  const items = [...qtyByKey.values()];
 
   const products = await Product.find({ _id: { $in: items.map((i) => i.productId) } });
   const byId = new Map(products.map((p) => [p._id.toString(), p]));
   for (const it of items) {
-    if (!byId.has(it.productId)) {
+    const p = byId.get(it.productId);
+    if (!p) {
       return res.status(400).json({ error: "One of the products no longer exists" });
+    }
+    // A half can only be sold for a dish that offers one. Guards against a
+    // stale client whose catalog still shows a half price that's been removed.
+    if (it.portion === "half" && p.halfPrice == null) {
+      return res.status(400).json({ error: `${p.name} is not sold as a half serving` });
     }
   }
 
   const orderItems = items.map((it) => {
     const p = byId.get(it.productId)!;
-    const lineTotal = orderType === "staff_meal" ? 0 : computeLineTotal(p, it.quantity);
-    return { product: p._id, name: p.name, price: p.price, costPrice: p.costPrice ?? null, quantity: it.quantity, lineTotal };
+    const half = it.portion === "half";
+    const lineTotal = orderType === "staff_meal" ? 0 : computeLineTotal(p, it.quantity, it.portion);
+    return {
+      product: p._id,
+      name: p.name,
+      // Snapshot the rates for the portion actually sold, so history and
+      // margin stay right even if the dish is repriced later.
+      price: half ? p.halfPrice! : p.price,
+      costPrice: (half ? p.halfCostPrice : p.costPrice) ?? null,
+      portion: it.portion,
+      quantity: it.quantity,
+      lineTotal,
+    };
   });
   const total = orderType === "staff_meal" ? 0 : orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
 

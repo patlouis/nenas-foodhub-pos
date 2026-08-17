@@ -9,6 +9,9 @@ export interface Product {
   category?: string
   status?: "active" | "disabled"
   costPrice?: number | null
+  // Set = this dish can be sold as a half serving, at its own price.
+  halfPrice?: number | null
+  halfCostPrice?: number | null
   discountQty?: number | null
   discountPrice?: number | null
   createdAt?: string

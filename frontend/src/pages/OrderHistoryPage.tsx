@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { Order } from "../types"
+import { orderItemLabel } from "../types"
 import { ordersApi } from "../api"
 import { useAuth } from "../auth"
 import Modal from "../components/Modal"
@@ -23,7 +24,7 @@ function ItemsList({ items }: { items: import("../types").OrderItem[] }) {
           className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-0.5 text-xs"
         >
           <span className="font-semibold tabular-nums text-[var(--accent)]">{i.quantity}×</span>
-          <span className="text-[var(--text-h)]">{i.name}</span>
+          <span className="text-[var(--text-h)]">{orderItemLabel(i)}</span>
         </span>
       ))}
       {rest > 0 && (
@@ -520,7 +521,7 @@ export default function OrderHistoryPage() {
             <ul className="flex flex-col gap-2 border-y border-[var(--border)] py-3">
               {viewTarget.items.map((i, idx) => (
                 <li key={idx} className="flex items-baseline gap-3">
-                  <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">{i.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">{orderItemLabel(i)}</span>
                   <span className="shrink-0 text-sm tabular-nums text-[var(--text)]">
                     {i.quantity} × ₱{i.price.toFixed(2)}
                   </span>

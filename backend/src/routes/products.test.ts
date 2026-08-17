@@ -190,6 +190,86 @@ describe("untracked stock (stock: null)", () => {
   });
 });
 
+describe("half servings and stock tracking are mutually exclusive", () => {
+  it("refuses to create a tracked product that is also sold by the half", async () => {
+    const { token } = await loginAs("admin");
+
+    const res = await request(app)
+      .post("/api/products")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Adobong Manok", price: 60, halfPrice: 35, stock: 10 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/can't be sold as a half serving/);
+  });
+
+  it("catches an omitted stock field, which defaults to tracked", async () => {
+    const { token } = await loginAs("admin");
+
+    const res = await request(app)
+      .post("/api/products")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Adobong Manok", price: 60, halfPrice: 35 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("allows a half serving on an untracked product", async () => {
+    const { token } = await loginAs("admin");
+
+    const res = await request(app)
+      .post("/api/products")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Adobong Manok", price: 60, halfPrice: 35, stock: null });
+
+    expect(res.status).toBe(201);
+    expect(res.body.halfPrice).toBe(35);
+  });
+
+  it("refuses to switch tracking on for a dish sold by the half", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Adobong Manok", price: 60, halfPrice: 35, stock: null });
+
+    // The patch mentions only stock — the conflict is with what's already stored.
+    const res = await request(app)
+      .put(`/api/products/${product._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ stock: 5 });
+
+    expect(res.status).toBe(400);
+    const after = await Product.findById(product._id);
+    expect(after!.stock).toBeNull();
+  });
+
+  it("refuses to add a half price to a dish that tracks stock", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Yakult", price: 20, stock: 10 });
+
+    const res = await request(app)
+      .put(`/api/products/${product._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ halfPrice: 12 });
+
+    expect(res.status).toBe(400);
+    const after = await Product.findById(product._id);
+    expect(after!.halfPrice).toBeNull();
+  });
+
+  it("allows turning tracking on once the half price is cleared in the same request", async () => {
+    const { token } = await loginAs("admin");
+    const product = await Product.create({ name: "Adobong Manok", price: 60, halfPrice: 35, stock: null });
+
+    const res = await request(app)
+      .put(`/api/products/${product._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ stock: 5, halfPrice: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body.stock).toBe(5);
+    expect(res.body.halfPrice).toBeNull();
+  });
+});
+
 describe("PATCH /api/products/:id/stock", () => {
   it("rejects removing more stock than is available", async () => {
     const { token } = await loginAs("admin");

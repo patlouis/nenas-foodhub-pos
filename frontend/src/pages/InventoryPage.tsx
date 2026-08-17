@@ -15,7 +15,7 @@ import { hasStock, hasStockFor, isTracked } from "../stock"
 type SortKey = "name" | "sku" | "category" | "costPrice" | "price" | "stock"
 type SortDir = "asc" | "desc"
 
-const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", costPrice: null, discountQty: null, discountPrice: null }
+const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", costPrice: null, discountQty: null, discountPrice: null, halfPrice: null, halfCostPrice: null }
 
 function StockBadge({ stock }: { stock: number | null }) {
   if (stock === null)
@@ -64,6 +64,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
   const [submitting, setSubmitting] = useState(false)
   const [skuTouched, setSkuTouched] = useState(false)
   const [discountOn, setDiscountOn] = useState(false)
+  const [halfOn, setHalfOn] = useState(false)
 
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
@@ -178,6 +179,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
     setEditTarget(null)
     setSkuTouched(false)
     setDiscountOn(false)
+    setHalfOn(false)
     setForm({ ...EMPTY, sku: generateSku("") })
     setFormError(null)
     setModalOpen(true)
@@ -187,7 +189,8 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
     setEditTarget(p)
     setSkuTouched(true)
     setDiscountOn(p.discountQty != null)
-    setForm({ name: p.name, sku: p.sku ?? "", price: p.price, stock: p.stock, category: p.category ?? "", costPrice: p.costPrice ?? null, discountQty: p.discountQty ?? null, discountPrice: p.discountPrice ?? null })
+    setHalfOn(p.halfPrice != null)
+    setForm({ name: p.name, sku: p.sku ?? "", price: p.price, stock: p.stock, category: p.category ?? "", costPrice: p.costPrice ?? null, discountQty: p.discountQty ?? null, discountPrice: p.discountPrice ?? null, halfPrice: p.halfPrice ?? null, halfCostPrice: p.halfCostPrice ?? null })
     setFormError(null)
     setModalOpen(true)
   }
@@ -336,10 +339,18 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
   // nothing, so it untracks without the prompt.
   const untrackingOnSave = hasStock(savedStock) && form.stock === null
 
+  const tracksStock = form.stock !== null
+
   function toggleTracking() {
-    // Switching back on restores the saved count: the toggle only edits the
-    // unsaved form, so nothing is discarded until Save.
-    setForm((prev) => ({ ...prev, stock: prev.stock === null ? (savedStock ?? 0) : null }))
+    if (tracksStock) {
+      setForm((prev) => ({ ...prev, stock: null }))
+      return
+    }
+    // Switching tracking on restores the saved count — the toggle only edits
+    // the unsaved form, so nothing is discarded until Save. Half servings go
+    // with it: a counted product can't sell half a unit.
+    setHalfOn(false)
+    setForm((prev) => ({ ...prev, stock: savedStock ?? 0, halfPrice: null, halfCostPrice: null }))
   }
 
   const wasteQtyNum = parseInt(wasteQty, 10)
@@ -717,6 +728,63 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
             )
           })()}
 
+          {/* Half servings live on the same product so there's one name, one
+              category and — the point — one availability switch. */}
+          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
+            <div>
+              <span className="text-sm text-[var(--text-h)]">Sold as half serving</span>
+              <p className="text-xs text-[var(--text)]">
+                {tracksStock
+                  ? "Turn off Track stock first — a half can't draw down half a unit"
+                  : "Adds a Half button on the order screen"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Sold as half serving"
+              aria-checked={halfOn}
+              disabled={tracksStock}
+              onClick={() => {
+                const next = !halfOn
+                setHalfOn(next)
+                if (!next) setForm((prev) => ({ ...prev, halfPrice: null, halfCostPrice: null }))
+              }}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                tracksStock
+                  ? "cursor-not-allowed bg-[var(--social-bg)] opacity-40"
+                  : `cursor-pointer ${halfOn ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`
+              }`}
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${halfOn && !tracksStock ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
+
+          {halfOn && !tracksStock && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className={fieldLabelCls}>
+                Half cost price (₱)
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.halfCostPrice ?? ""}
+                  onChange={(e) => setForm({ ...form, halfCostPrice: e.target.value !== "" ? Number(e.target.value) : null })}
+                  placeholder="optional"
+                  className={inputCls}
+                />
+              </label>
+              <label className={fieldLabelCls}>
+                Half selling price (₱)
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.halfPrice ?? ""}
+                  onChange={(e) => setForm({ ...form, halfPrice: e.target.value !== "" ? Number(e.target.value) : null })}
+                  placeholder="0.00"
+                  className={inputCls}
+                />
+              </label>
+            </div>
+          )}
+
           {/* Tracking off = stock null. See src/stock.ts for why. */}
           <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
             <div>
@@ -739,7 +807,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
 
           {form.stock === null ? (
             <p className="text-xs text-[var(--text)]">
-              Always sellable. It won't appear in stock alerts, and Restock and Wastage don't apply.
+              Always sellable — no stock alerts, Restock or Wastage.
             </p>
           ) : savedStock !== null ? (
             <div className={fieldLabelCls}>

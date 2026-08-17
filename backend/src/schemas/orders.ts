@@ -10,6 +10,7 @@ export const createOrderSchema = z.object({
           .string()
           .refine((v) => mongoose.isValidObjectId(v), "Each item needs a valid productId"),
         quantity: z.number().int().min(1, "Each item needs a whole-number quantity of at least 1"),
+        portion: z.enum(["full", "half"]).optional().default("full"),
       })
     )
     .min(1, "Order must contain at least one item"),

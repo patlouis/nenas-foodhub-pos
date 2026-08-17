@@ -12,6 +12,9 @@ export const createProductSchema = z.object({
   category: objectId.optional(),
   status: z.enum(["active", "disabled"]).optional(),
   costPrice: z.number().min(0, "costPrice must be 0 or greater").nullable().optional(),
+  // Present = this dish can be sold as a half serving.
+  halfPrice: z.number().min(0, "halfPrice must be 0 or greater").nullable().optional(),
+  halfCostPrice: z.number().min(0, "halfCostPrice must be 0 or greater").nullable().optional(),
   discountQty: z.number().int().min(2, "discountQty must be at least 2").nullable().optional(),
   discountPrice: z.number().min(0, "discountPrice must be 0 or greater").nullable().optional(),
 });

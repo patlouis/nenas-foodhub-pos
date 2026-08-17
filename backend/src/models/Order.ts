@@ -8,6 +8,9 @@ export interface IOrderItem {
   name: string;
   price: number;
   costPrice?: number | null;
+  // A half serving is the same dish at its own price, so the line records
+  // which portion was sold and price/costPrice snapshot that portion's rates.
+  portion: "full" | "half";
   quantity: number;
   lineTotal: number;
 }
@@ -36,6 +39,7 @@ const orderItemSchema = new mongoose.Schema<IOrderItem>(
     name: { type: String, required: true },
     price: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, default: null },
+    portion: { type: String, enum: ["full", "half"], default: "full" },
     quantity: { type: Number, required: true, min: 1 },
     lineTotal: { type: Number, required: true, min: 0 },
   },
