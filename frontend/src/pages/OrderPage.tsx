@@ -4,7 +4,7 @@ import { TABLE_KEYS } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
 import { getLineTotal } from "../pricing"
 import { getChange } from "../tender"
-import { hasStockFor, isUnavailable, stockLabel } from "../stock"
+import { hasStockFor, isTracked, isUnavailable, stockLabel } from "../stock"
 import { useTableCarts, type CartLine } from "../hooks/useTableCarts"
 import { ErrorBanner, EmptyState, XSmallIcon, SearchBox, btnPrimaryCls, btnOutlineCls, PrinterIcon, inputCls } from "../components/ui"
 import { printReceipt } from "../utils/printReceipt"
@@ -282,7 +282,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
         onClick={() => handleAdd(p)}
         disabled={unavailable}
         className={
-          "relative flex w-full flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
+          // h-full keeps every card in a row the same height. The grid cell
+          // already stretches; without it the button is content-sized, so a
+          // wrapped name or a missing stock line leaves the row ragged.
+          "relative flex h-full w-full flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
           (unavailable
             ? "cursor-not-allowed border-[var(--border)] opacity-50"
             : "cursor-pointer border-[var(--border)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-bg)]")
@@ -308,8 +311,16 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
             {p.discountQty}× for ₱{p.discountPrice!.toFixed(2)}
           </span>
         )}
-        <span className="text-xs text-[var(--text)]">
-          {p.status === "disabled" ? "Unavailable" : stockLabel(p.stock)}
+        {/* Untracked is bookkeeping, not something the cashier acts on — only
+            a shortage or a switched-off item earns words here. The empty line
+            still holds its height: a row of nothing but untracked items would
+            otherwise shrink until the Half button sat on top of the price. */}
+        <span className="min-h-4 text-xs text-[var(--text)]">
+          {p.status === "disabled"
+            ? "Unavailable"
+            : isTracked(p.stock)
+              ? stockLabel(p.stock)
+              : null}
         </span>
       </button>
 
