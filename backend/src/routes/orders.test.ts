@@ -299,6 +299,52 @@ describe("PATCH /api/orders/:id/void", () => {
       .set("Authorization", `Bearer ${adminToken}`);
     expect(secondVoid.status).toBe(409);
   });
+
+  it("voids an order that mixes tracked and untracked lines", async () => {
+    const { token: cashierToken } = await loginAs("cashier");
+    const { token: adminToken } = await loginAs("admin");
+    const tracked = await createProduct({ name: "Coke", stock: 10 });
+    const untracked = await Product.create({ name: "Rice", price: 20, stock: null });
+
+    const order = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${cashierToken}`)
+      .send({
+        items: [
+          { productId: tracked._id.toString(), quantity: 3 },
+          { productId: untracked._id.toString(), quantity: 2 },
+        ],
+      });
+    expect(order.status).toBe(201);
+
+    // The untracked line took nothing at sale time, so restoring it would be
+    // an $inc against null — which aborts the transaction and strands the void.
+    const res = await request(app)
+      .patch(`/api/orders/${order.body._id}/void`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("voided");
+
+    expect((await Product.findById(tracked._id))!.stock).toBe(10);
+    expect((await Product.findById(untracked._id))!.stock).toBeNull();
+  });
+
+  it("voids an order whose product has since been switched to untracked", async () => {
+    const { token: cashierToken } = await loginAs("cashier");
+    const { token: adminToken } = await loginAs("admin");
+    const product = await createProduct({ stock: 10 });
+    const order = await placeOrder(cashierToken, product._id.toString(), 3);
+
+    // Same rule as voiding a stock adjustment: there is no tally left to
+    // reverse into, so the order voids and stock is left alone.
+    await Product.updateOne({ _id: product._id }, { $set: { stock: null } });
+
+    const res = await request(app)
+      .patch(`/api/orders/${order._id}/void`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect((await Product.findById(product._id))!.stock).toBeNull();
+  });
 });
 
 describe("GET /api/orders", () => {

@@ -232,9 +232,18 @@ router.patch("/:id/void", requireAuth, requireAdmin, async (req: Request, res: R
         throw err;
       }
 
+      // An untracked product has no tally to give the units back to, and $inc
+      // against null is a MongoDB error that would abort the whole void — so
+      // the order could never be voided at all. Matching on stock rather than
+      // reading it first keeps the skip atomic with the increment. Same rule
+      // as voiding a stock adjustment: no tally, no reversal, order still voids.
       await Promise.all(
         order.items.map((item) =>
-          Product.updateOne({ _id: item.product }, { $inc: { stock: item.quantity } }, { session })
+          Product.updateOne(
+            { _id: item.product, stock: { $ne: null } },
+            { $inc: { stock: item.quantity } },
+            { session }
+          )
         )
       );
 
