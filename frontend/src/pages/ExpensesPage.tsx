@@ -53,6 +53,7 @@ const BADGE_COLORS: Record<ExpenseCategory, string> = {
   utilities: "bg-yellow-500/10 text-yellow-600",
   salaries:  "bg-purple-500/10 text-purple-500",
   supplies:  "bg-green-500/10 text-green-600",
+  groceries: "bg-blue-500/10 text-blue-600",
   repairs:   "bg-orange-500/10 text-orange-500",
   other:     "bg-[var(--social-bg)] text-[var(--text)]",
 }
@@ -67,11 +68,10 @@ function CategoryBadge({ category }: { category: ExpenseCategory }) {
 
 const pickerCls = "h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
-// "supplies" is intentionally omitted from manual entry: a supplies expense
-// should come from restocking on the Supplies page (which also updates the
-// quantity on hand). The category still exists for those auto-created expenses
-// and remains in the filter/list below.
-const ADDABLE_CATEGORIES = EXPENSE_CATEGORIES.filter((c) => c !== "supplies")
+// "supplies" used to be entered only by restocking on the Supplies page, which
+// created the expense itself. With that page gone it is typed in by hand like
+// any other category — expenses created the old way are unaffected.
+const ADDABLE_CATEGORIES = EXPENSE_CATEGORIES
 
 export default function ExpensesPage() {
   const [data, setData] = useState<Expense[]>([])
