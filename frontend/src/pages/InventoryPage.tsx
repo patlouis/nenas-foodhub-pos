@@ -789,7 +789,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
           <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
             <div>
               <span className="text-sm text-[var(--text-h)]">Track stock</span>
-              <p className="text-xs text-[var(--text)]">Off for items measured in Supplies, like rice or meals</p>
+              <p className="text-xs text-[var(--text)]">Off for items you don't count, like rice or meals</p>
             </div>
             <button
               type="button"

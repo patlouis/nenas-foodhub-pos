@@ -43,7 +43,7 @@ describe("POST /api/orders", () => {
 
   it("sells a product that doesn't track stock without ever running out", async () => {
     const { token } = await loginAs("cashier");
-    // Rice by the cup: limited by Supplies, not by a per-item tally.
+    // Rice by the cup: portioned out of bulk, so there is no per-item tally.
     const product = await Product.create({ name: "Rice", price: 20, stock: null });
 
     const res = await request(app)

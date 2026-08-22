@@ -4,8 +4,6 @@ import OrderPage from "./pages/OrderPage"
 import OrderHistoryPage from "./pages/OrderHistoryPage"
 import InventoryPage from "./pages/InventoryPage"
 import InventoryLogPage from "./pages/InventoryLogPage"
-import SuppliesPage from "./pages/SuppliesPage"
-import SupplyLogPage from "./pages/SupplyLogPage"
 import ExpensesPage from "./pages/ExpensesPage"
 import CategoriesPage from "./pages/CategoriesPage"
 import UsersPage from "./pages/UsersPage"
@@ -29,7 +27,7 @@ function WakingUpBanner() {
 function App() {
   const { user, logout } = useAuth()
 
-  const ADMIN_ONLY: Page[] = ["dashboard", "inventory-log", "supplies", "supply-log", "expenses", "users"]
+  const ADMIN_ONLY: Page[] = ["dashboard", "inventory-log", "expenses", "users"]
 
   function defaultPage(role: string | undefined): Page {
     return role === "admin" ? "dashboard" : "order"
@@ -206,8 +204,6 @@ function App() {
           {page === "categories" && <CategoriesPage />}
           {page === "inventory"     && <InventoryPage onViewLog={user.role === "admin" ? () => go("inventory-log") : undefined} />}
           {page === "inventory-log" && user.role === "admin" && <InventoryLogPage onBack={() => go("inventory")} />}
-          {page === "supplies" && user.role === "admin" && <SuppliesPage onViewLog={() => go("supply-log")} />}
-          {page === "supply-log" && user.role === "admin" && <SupplyLogPage onBack={() => go("supplies")} />}
           {page === "expenses" && user.role === "admin" && <ExpensesPage />}
           {page === "users"         && user.role === "admin" && <UsersPage />}
         </main>

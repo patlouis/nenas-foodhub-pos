@@ -219,7 +219,7 @@ export function PageShell({ children }: { children: ReactNode }) {
 
 // Title row: h1 on the left, primary action pinned to the right —
 // identical position on every page. When `onBack` is provided (e.g. the log
-// pages reached from Inventory/Supplies), a small back link sits above the
+// pages reached from Inventory), a small back link sits above the
 // title so the title itself stays left-aligned with the page content.
 export function PageHeader({
   title, action, onBack, backLabel = "Back",

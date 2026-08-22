@@ -1,5 +1,5 @@
 // A product's stock is `null` when it isn't counted — cooked meals, rice by
-// the cup. Their real limit lives in Supplies, not a per-item tally.
+// the cup. They are portioned out of bulk, so a per-item tally means nothing.
 //
 // Go through these helpers instead of comparing the number directly: to a bare
 // `stock <= 0`, "untracked" and "none left" look identical.

@@ -4,7 +4,7 @@ export interface IProduct {
   name: string;
   sku?: string;
   price: number;
-  // null = not counted (cooked meals, rice by the cup — limited by Supplies).
+  // null = not counted (cooked meals, rice by the cup — portioned out of bulk).
   // Handle null before comparing: `stock <= 0` can't tell it from sold out.
   stock: number | null;
   category?: mongoose.Types.ObjectId;

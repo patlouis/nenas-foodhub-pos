@@ -1,7 +1,7 @@
 import type { Theme } from "../hooks/useTheme"
 import type { Role } from "../types"
 
-export type Page = "dashboard" | "order" | "history" | "categories" | "inventory" | "inventory-log" | "supplies" | "supply-log" | "expenses" | "users"
+export type Page = "dashboard" | "order" | "history" | "categories" | "inventory" | "inventory-log" | "expenses" | "users"
 
 type SidebarProps = {
   current: Page
@@ -46,7 +46,6 @@ function HistoryIcon() {
   )
 }
 
-
 function CategoriesIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -62,19 +61,6 @@ function InventoryIcon() {
       <polygon points="12 2 2 7 12 12 22 7 12 2" />
       <polyline points="2 17 12 22 22 17" />
       <polyline points="2 12 12 17 22 12" />
-    </svg>
-  )
-}
-
-
-function SupplyIcon() {
-  // 3D package box — isometric carton, distinct from the Inventory
-  // (stacked-layers) icon.
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-      <path d="M3.3 7 12 12l8.7-5" />
-      <path d="M12 22V12" />
     </svg>
   )
 }
@@ -152,7 +138,6 @@ const NAV_ITEMS: { id: Page; label: string; Icon: () => React.JSX.Element; admin
   { id: "history",    label: "History",       Icon: HistoryIcon    },
   { id: "categories", label: "Categories",    Icon: CategoriesIcon },
   { id: "inventory",     label: "Inventory",     Icon: InventoryIcon                   },
-  { id: "supplies",      label: "Supplies",       Icon: SupplyIcon,       adminOnly: true },
   { id: "expenses",      label: "Expenses",       Icon: ExpensesIcon,     adminOnly: true },
   { id: "users",         label: "Users",         Icon: UsersIcon,        adminOnly: true },
 ]
@@ -196,12 +181,9 @@ export default function Sidebar({
 
       <nav className="flex w-full flex-col gap-1">
         {NAV_ITEMS.filter(({ adminOnly }) => !adminOnly || userRole === "admin").map(({ id, label, Icon }) => {
-          // The log pages aren't nav items of their own — they're reached from
-          // Inventory/Supplies — so keep the parent item highlighted there.
-          const active =
-            current === id ||
-            (id === "inventory" && current === "inventory-log") ||
-            (id === "supplies" && current === "supply-log")
+          // The log page isn't a nav item of its own — it's reached from
+          // Inventory — so keep the parent item highlighted there.
+          const active = current === id || (id === "inventory" && current === "inventory-log")
           return (
             <button
               key={id}

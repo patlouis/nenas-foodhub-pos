@@ -1,6 +1,5 @@
 import type {
   Product, NewProduct, User, NewUser, Category, NewCategory, Order, NewOrderItem, Paginated, StockAdjustment, Expense,
-  Supply, NewSupply, SupplyAdjustment,
 } from "./types"
 import { couldBeColdStart, COLD_START_HINT_MS } from "./coldStart"
 
@@ -12,8 +11,6 @@ const USERS = `${BASE}/api/users`
 const ORDERS = `${BASE}/api/orders`
 const STOCK_ADJUSTMENTS = `${BASE}/api/stock-adjustments`
 const EXPENSES = `${BASE}/api/expenses`
-const SUPPLIES = `${BASE}/api/supplies`
-const SUPPLY_ADJUSTMENTS = `${BASE}/api/supply-adjustments`
 
 // Fired whenever the backend rejects our token; AuthProvider listens and
 // drops the app back to the login screen.
@@ -284,75 +281,6 @@ export const expensesApi = {
       method: "PATCH",
       headers: authHeaders(),
     }).then(handle<Expense>),
-}
-
-export interface SupplyListParams {
-  page?: number
-  limit?: number
-  q?: string
-  status?: "active" | "archived"
-  sortKey?: string
-  sortDir?: string
-  [key: string]: string | number | undefined
-}
-
-export interface SupplyAdjustmentListParams {
-  page?: number
-  limit?: number
-  type?: "restock" | "consume"
-  supply?: string
-  from?: string
-  to?: string
-  q?: string
-  sortKey?: string
-  sortDir?: "asc" | "desc"
-  [key: string]: string | number | undefined
-}
-
-export const suppliesApi = {
-  list: (params?: SupplyListParams) =>
-    watchedFetch(`${SUPPLIES}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Supply>>),
-
-  create: (data: NewSupply) =>
-    watchedFetch(SUPPLIES, {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify(data),
-    }).then(handle<Supply>),
-
-  update: (id: string, data: Partial<Pick<Supply, "name" | "unit" | "lowStockAt" | "status">>) =>
-    watchedFetch(`${SUPPLIES}/${id}`, {
-      method: "PUT",
-      headers: jsonHeaders(),
-      body: JSON.stringify(data),
-    }).then(handle<Supply>),
-
-  restock: (id: string, quantity: number, unitCost: number) =>
-    watchedFetch(`${SUPPLIES}/${id}/restock`, {
-      method: "PATCH",
-      headers: jsonHeaders(),
-      body: JSON.stringify({ quantity, unitCost }),
-    }).then(handle<{ supply: Supply; adjustment: SupplyAdjustment }>),
-
-  consume: (id: string, quantity: number, reason?: string) =>
-    watchedFetch(`${SUPPLIES}/${id}/consume`, {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify({ quantity, ...(reason ? { reason } : {}) }),
-    }).then(handle<{ supply: Supply; adjustment: SupplyAdjustment }>),
-}
-
-export const supplyAdjustmentsApi = {
-  list: (params?: SupplyAdjustmentListParams) =>
-    watchedFetch(`${SUPPLY_ADJUSTMENTS}${buildQuery(params)}`, { headers: authHeaders() }).then(
-      handle<Paginated<SupplyAdjustment> & { totalCost: number }>
-    ),
-
-  void: (id: string) =>
-    watchedFetch(`${SUPPLY_ADJUSTMENTS}/${id}/void`, {
-      method: "PATCH",
-      headers: authHeaders(),
-    }).then(handle<SupplyAdjustment>),
 }
 
 export const ordersApi = {
