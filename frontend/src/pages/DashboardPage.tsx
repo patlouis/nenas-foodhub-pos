@@ -121,6 +121,8 @@ function BarChart({
   showValues = false,
   maxLabels,
   minWidth,
+  selectedIndex = null,
+  onSelectIndex,
 }: {
   data: { label: string; value: number }[]
   height?: number
@@ -132,6 +134,11 @@ function BarChart({
   showValues?: boolean
   maxLabels?: number
   minWidth?: number
+  /** Index of the bar to highlight, or null. Pairs with onSelectIndex. */
+  selectedIndex?: number | null
+  /** Makes every bar tappable. Only a printed label or a hover tooltip could
+   *  reveal a bar's value before, and a touch screen can produce neither. */
+  onSelectIndex?: (index: number | null) => void
 }) {
   const max = Math.max(...data.map((d) => d.value), 1)
   // When showing value labels above bars, cap bar scale at 55% so labels have room
@@ -152,11 +159,26 @@ function BarChart({
     <div className="flex items-end gap-0.5" style={{ height, minWidth }}>
       {data.map((d, i) => {
         const showLabel = showValues && d.value > 0 && (!labelSet || labelSet.has(i))
+        const selected = selectedIndex === i
+        const Bar = onSelectIndex ? "button" : "div"
         return (
-          <div
+          <Bar
             key={i}
+            {...(onSelectIndex
+              ? {
+                  type: "button" as const,
+                  // Tapping the selected bar again clears it, so the readout
+                  // can be dismissed without hunting for a close control.
+                  onClick: () => onSelectIndex(selected ? null : i),
+                  "aria-pressed": selected,
+                  "aria-label": valueFmt ? `${d.label}: ${valueFmt(d.value)}` : `${d.label}: ${d.value}`,
+                }
+              : {})}
             title={valueFmt ? `${d.label}: ${valueFmt(d.value)}` : `${d.label}: ${d.value}`}
-            className="flex h-full flex-1 flex-col items-center gap-1"
+            className={
+              "flex h-full flex-1 flex-col items-center gap-1 bg-transparent p-0 " +
+              (onSelectIndex ? "cursor-pointer focus-visible:outline-none" : "")
+            }
           >
             <div className="flex w-full flex-1 flex-col justify-end">
               <div
@@ -164,7 +186,11 @@ function BarChart({
                 style={{
                   height: `${Math.max((d.value / max) * maxPct, d.value > 0 ? 2 : 0.5)}%`,
                   backgroundColor: color,
-                  opacity: d.value > 0 ? 0.82 : 0.12,
+                  // The selected bar goes fully opaque rather than changing
+                  // colour, so it reads as the same series, just picked out.
+                  opacity: selected ? 1 : d.value > 0 ? 0.82 : 0.12,
+                  outline: selected ? "2px solid var(--accent)" : undefined,
+                  outlineOffset: selected ? "1px" : undefined,
                   width: barMaxW ? `min(100%, ${barMaxW}px)` : "100%",
                   margin: "0 auto",
                 }}
@@ -197,7 +223,7 @@ function BarChart({
                 {i % labelStep === 0 ? d.label : ""}
               </span>
             )}
-          </div>
+          </Bar>
         )
       })}
     </div>
@@ -328,6 +354,10 @@ export default function DashboardPage() {
   // By Product panel filters — narrow the list only, never the figures above it.
   const [productQuery, setProductQuery] = useState("")
   const [productCategory, setProductCategory] = useState("")
+  // Which trend bar the reader has picked out. Only the top few bars print a
+  // value and a tooltip needs a pointer, so on a phone or tablet this is the
+  // only way to read the rest.
+  const [trendPick, setTrendPick] = useState<number | null>(null)
 
   function switchMode(mode: DateMode) {
     setDateMode(mode)
@@ -535,6 +565,11 @@ export default function DashboardPage() {
 
   const trendTitle = dateMode === "day" ? "Hourly Revenue" : dateMode === "all" ? "Monthly Revenue" : "Daily Revenue"
 
+  // The pick is an index into the bars, so it can't outlive the bars it points
+  // at — switching period would otherwise read out a stale day's takings.
+  useEffect(() => { setTrendPick(null) }, [revenueTrend])
+  const pickedBar = trendPick != null ? revenueTrend[trendPick] : undefined
+
   // Top products
   const topProducts = useMemo(() => {
     // The server groups by name and portion, which is the same split this list
@@ -726,22 +761,40 @@ export default function DashboardPage() {
       {/* Revenue trend + top products */}
       <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:col-span-3">
-          <p className="mb-4 text-sm font-semibold text-[var(--text-h)]">
-            {trendTitle}{" "}
-            <span className="font-normal text-[var(--text)]">· {periodLabel(dateMode, datePick)}</span>
-          </p>
+          {/* The picked bar's value sits on the title line rather than in a row
+              of its own: the By Product card beside this one is pinned to this
+              card's height, and a new row would break the edge they share. */}
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <p className="text-sm font-semibold text-[var(--text-h)]">
+              {trendTitle}{" "}
+              <span className="font-normal text-[var(--text)]">· {periodLabel(dateMode, datePick)}</span>
+            </p>
+            {pickedBar && (
+              <p className="shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums text-[var(--accent)]">
+                {pickedBar.label} · {fmtMoney(pickedBar.value)}
+              </p>
+            )}
+          </div>
           {revenueTrend.every((d) => d.value === 0) ? (
             <div className="flex h-[200px] items-center justify-center text-sm text-[var(--text)]">
               No sales for this period
             </div>
           ) : dateMode === "day" ? (
-            <BarChart data={revenueTrend} valueFmt={fmtMoney} height={220} barMaxW={8} rotateLabels showValues />
+            <BarChart data={revenueTrend} valueFmt={fmtMoney} height={220} barMaxW={8} rotateLabels showValues
+              selectedIndex={trendPick} onSelectIndex={setTrendPick} />
           ) : dateMode === "month" ? (
-            <div className="overflow-x-auto">
-              <BarChart data={revenueTrend} valueFmt={fmtMoney} height={220} barMaxW={10} rotateLabels showValues maxLabels={5} minWidth={560} />
+            // A month of bars is wider than a phone, so it scrolls. The fade on
+            // the right edge is the only cue that there is more to reach.
+            <div className="relative">
+              <div className="overflow-x-auto">
+                <BarChart data={revenueTrend} valueFmt={fmtMoney} height={220} barMaxW={10} rotateLabels showValues maxLabels={5} minWidth={560}
+                  selectedIndex={trendPick} onSelectIndex={setTrendPick} />
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[var(--surface)] to-transparent sm:hidden" />
             </div>
           ) : (
-            <BarChart data={revenueTrend} valueFmt={fmtMoney} height={200} showValues />
+            <BarChart data={revenueTrend} valueFmt={fmtMoney} height={200} showValues
+              selectedIndex={trendPick} onSelectIndex={setTrendPick} />
           )}
         </div>
 
