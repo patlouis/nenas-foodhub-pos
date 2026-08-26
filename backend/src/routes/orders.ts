@@ -19,9 +19,12 @@ router.get("/", requireAuth, async (req: Request, res: Response, next: NextFunct
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid query" });
     }
-    const { page, limit, q, from, to, paymentType, sortKey, sortDir } = parsed.data;
+    const { page, limit, q, from, to, paymentType, status, sortKey, sortDir } = parsed.data;
 
     const filter: Record<string, unknown> = {};
+    // "completed" is everything not voided rather than an equality match, so
+    // orders written before the status field existed still count as completed.
+    if (status) filter.status = status === "voided" ? "voided" : { $ne: "voided" };
     if (paymentType === "staff_meal") {
       filter.orderType = "staff_meal";
     } else if (paymentType) {

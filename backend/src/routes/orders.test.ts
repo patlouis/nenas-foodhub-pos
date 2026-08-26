@@ -461,6 +461,69 @@ describe("GET /api/orders/summary", () => {
   });
 });
 
+describe("GET /api/orders ?status", () => {
+  async function seed() {
+    const line = (total: number) => [
+      { product: new mongoose.Types.ObjectId(), name: "Adobo", price: total, portion: "full" as const, quantity: 1, lineTotal: total },
+    ];
+    await Order.create({ items: line(100), total: 100, status: "completed" });
+    await Order.create({ items: line(200), total: 200, status: "voided" });
+    // Written before the status field existed — still a completed sale.
+    await Order.collection.insertOne({
+      items: line(300), total: 300, orderType: "sale", createdAt: new Date(), updatedAt: new Date(),
+    });
+  }
+
+  it("lists both when no status is given", async () => {
+    const { token } = await loginAs("cashier");
+    await seed();
+
+    const res = await request(app).get("/api/orders").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(3);
+  });
+
+  it("lists only voided orders", async () => {
+    const { token } = await loginAs("cashier");
+    await seed();
+
+    const res = await request(app)
+      .get("/api/orders")
+      .query({ status: "voided" })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.data[0].total).toBe(200);
+  });
+
+  it("counts a statusless legacy order as completed", async () => {
+    const { token } = await loginAs("cashier");
+    await seed();
+
+    const res = await request(app)
+      .get("/api/orders")
+      .query({ status: "completed" })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2);
+    expect(res.body.data.map((o: { total: number }) => o.total).sort()).toEqual([100, 300]);
+  });
+
+  it("rejects a status it doesn't recognise", async () => {
+    const { token } = await loginAs("cashier");
+
+    const res = await request(app)
+      .get("/api/orders")
+      .query({ status: "cancelled" })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("GET /api/orders", () => {
   it("paginates and reports totals", async () => {
     const { token } = await loginAs("cashier");

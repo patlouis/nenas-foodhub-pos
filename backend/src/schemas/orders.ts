@@ -53,6 +53,8 @@ export const listOrdersQuerySchema = paginationQuerySchema(1000).extend({
   from: z.string().optional(),
   to: z.string().optional(),
   paymentType: z.enum(["cash", "gcash", "staff_meal"]).optional(),
+  // Absent lists both, which is what the history page has always shown.
+  status: z.enum(["voided", "completed"]).optional(),
   sortKey: z.enum(["date", "cashier", "total", "payment"]).optional().default("date"),
   sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
 });

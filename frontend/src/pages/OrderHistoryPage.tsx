@@ -124,6 +124,9 @@ export default function OrderHistoryPage() {
   const [dateMode, setDateMode] = useState<DateMode>("all")
   const [datePick, setDatePick] = useState("") // value for the active mode's picker
   const [paymentType, setPaymentType] = useState("")
+  // "" lists both, which is what this page has always shown — narrowing to one
+  // or the other is a deliberate pick.
+  const [voidFilter, setVoidFilter] = useState<"" | "voided" | "completed">("")
   const [sortKey, setSortKey] = useState<SortKey>("date")
   const [sortDir, setSortDir] = useState<SortDir>("desc") // newest first
   const [page, setPage] = useState(1)
@@ -150,7 +153,7 @@ export default function OrderHistoryPage() {
     return () => clearTimeout(t)
   }, [query])
 
-  useEffect(() => { setPage(1) }, [debouncedQuery, dateMode, datePick, paymentType, sortKey, sortDir, pageSize])
+  useEffect(() => { setPage(1) }, [debouncedQuery, dateMode, datePick, paymentType, voidFilter, sortKey, sortDir, pageSize])
 
   const fetchOrders = useCallback(async () => {
     if (isFirstLoad.current) setLoading(true)
@@ -173,6 +176,7 @@ export default function OrderHistoryPage() {
         q: debouncedQuery || undefined,
         from, to,
         paymentType: paymentType || undefined,
+        status: voidFilter || undefined,
         sortKey, sortDir,
       })
       setOrders(res.data)
@@ -185,7 +189,7 @@ export default function OrderHistoryPage() {
       setLoading(false)
       isFirstLoad.current = false
     }
-  }, [page, pageSize, debouncedQuery, dateMode, datePick, paymentType, sortKey, sortDir])
+  }, [page, pageSize, debouncedQuery, dateMode, datePick, paymentType, voidFilter, sortKey, sortDir])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
@@ -193,9 +197,11 @@ export default function OrderHistoryPage() {
     if (!voidTarget) return
     setVoiding(true)
     try {
-      const updated = await ordersApi.void(voidTarget._id)
-      setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)))
+      await ordersApi.void(voidTarget._id)
+      // The order no longer belongs in a not-voided list, and the count and
+      // paging behind it have shifted — refetch rather than patch it in place.
       setVoidTarget(null)
+      await fetchOrders()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to void order")
       setVoidTarget(null)
@@ -214,7 +220,7 @@ export default function OrderHistoryPage() {
   }
 
 
-  const isFiltering = query.trim() !== "" || dateMode !== "all" || paymentType !== ""
+  const isFiltering = query.trim() !== "" || dateMode !== "all" || paymentType !== "" || voidFilter !== ""
 
   return (
     <PageShell>
@@ -293,6 +299,19 @@ export default function OrderHistoryPage() {
                 <option value="gcash">GCash</option>
                 <option value="staff_meal">Staff meal</option>
               </select>
+
+              {/* Void filter — voided orders stay in the list by default, the
+                  same historical record the page has always shown. */}
+              <select
+                value={voidFilter}
+                onChange={(e) => setVoidFilter(e.target.value as "" | "voided" | "completed")}
+                aria-label="Filter by voided"
+                className="h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              >
+                <option value="">All orders</option>
+                <option value="completed">Not voided</option>
+                <option value="voided">Voided</option>
+              </select>
             </div>
           </Toolbar>
 
@@ -308,7 +327,10 @@ export default function OrderHistoryPage() {
               </div>
             </div>
           )}
-          {user?.role === "admin" && totalAmount !== undefined && paymentType !== "staff_meal" && (
+          {/* Voided orders collected nothing, so this strip would read ₱0.00
+              across N orders when the list is filtered down to them. Correct,
+              but it reads like a fault — better not to show it at all. */}
+          {user?.role === "admin" && totalAmount !== undefined && paymentType !== "staff_meal" && voidFilter !== "voided" && (
             <div className={`mb-3 flex items-center justify-between rounded-lg border border-[var(--border)] border-l-4 bg-[var(--surface)] px-4 py-3 text-sm ${paymentType === "gcash" ? "border-l-blue-500" : "border-l-emerald-500"}`}>
               <div className="flex items-center gap-2.5">
                 <PaymentBadge method={paymentType as "cash" | "gcash"} />

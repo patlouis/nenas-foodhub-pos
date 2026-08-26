@@ -222,6 +222,8 @@ export interface OrderListParams {
   from?: string
   to?: string
   paymentType?: string
+  /** Omit to list voided and completed orders together. */
+  status?: "voided" | "completed"
   sortKey?: string
   sortDir?: string
   [key: string]: string | number | undefined
