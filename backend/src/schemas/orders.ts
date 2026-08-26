@@ -35,6 +35,19 @@ export const peakHoursQuerySchema = z.object({
   timezone: z.string().default("UTC").refine(isValidTimeZone, "Invalid timezone"),
 });
 
+// The dashboard's figures are aggregated in the database rather than summed
+// from a page of orders in the browser, which silently truncated every total
+// once the shop passed the page limit. Both periods are asked for at once so
+// the KPI cards get their comparison without a second round trip.
+export const summaryQuerySchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  prevFrom: z.string().optional(),
+  prevTo: z.string().optional(),
+  bucket: z.enum(["hour", "day", "month"]).optional().default("day"),
+  timezone: z.string().default("UTC").refine(isValidTimeZone, "Invalid timezone"),
+});
+
 export const listOrdersQuerySchema = paginationQuerySchema(1000).extend({
   q: z.string().trim().optional(),
   from: z.string().optional(),

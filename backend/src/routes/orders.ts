@@ -5,7 +5,7 @@ import Product from "../models/Product.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { computeLineTotal, type Portion } from "../lib/pricing.js";
-import { createOrderSchema, listOrdersQuerySchema, peakHoursQuerySchema } from "../schemas/orders.js";
+import { createOrderSchema, listOrdersQuerySchema, peakHoursQuerySchema, summaryQuerySchema } from "../schemas/orders.js";
 import { paginate } from "../schemas/pagination.js";
 
 const router = Router();
@@ -95,6 +95,131 @@ router.get("/peak-hours", requireAuth, async (req: Request, res: Response, next:
     const hours = new Array<number>(24).fill(0);
     for (const b of buckets) hours[b._id] = b.count;
     res.json({ hours });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Orders entered after midnight but before this hour still belong to the
+// previous business day. Mirrors BUSINESS_DAY_CUTOFF_HOUR in the frontend's
+// dateHelpers — the two must agree or the chart won't match the KPI cards.
+const BUSINESS_DAY_CUTOFF_HOUR = 4;
+
+// Voided orders collected nothing and staff meals were never sold, so no
+// revenue figure counts either of them.
+const SOLD_ONLY = { status: { $ne: "voided" }, orderType: { $ne: "staff_meal" } };
+
+function rangeMatch(from?: string, to?: string): Record<string, unknown> {
+  if (!from && !to) return { ...SOLD_ONLY };
+  const range: { $gte?: Date; $lte?: Date } = {};
+  if (from) range.$gte = new Date(from);
+  if (to) range.$lte = new Date(to);
+  return { ...SOLD_ONLY, createdAt: range };
+}
+
+// Line revenue, falling back to price × quantity for orders written before
+// lineTotal existed — the same rule the dashboard applied in the browser.
+const LINE_TOTAL = {
+  $ifNull: ["$items.lineTotal", { $multiply: ["$items.price", "$items.quantity"] }],
+};
+// A missing costPrice compares equal to null here, so both legacy items and
+// deliberately uncosted ones fall to the uncosted side.
+const HAS_COST = { $ne: ["$items.costPrice", null] };
+
+interface ItemRow {
+  name: string;
+  portion: "full" | "half";
+  qty: number;
+  revenue: number;
+  costedQty: number;
+  costedRevenue: number;
+  costSum: number;
+}
+
+// Per name+portion rather than per product id: order items snapshot the name,
+// and the dashboard's category lookup and half-serving split are both keyed on
+// that pair. Costed and uncosted quantities are reported separately because
+// only the caller knows the current catalog cost to fall back to, and only for
+// a full serving — a half must never borrow the full portion's cost.
+async function summarize(match: Record<string, unknown>) {
+  const [totals] = await Order.aggregate<{ revenue: number; orderCount: number }>([
+    { $match: match },
+    { $group: { _id: null, revenue: { $sum: "$total" }, orderCount: { $sum: 1 } } },
+  ]);
+  const rows = await Order.aggregate<{ _id: { name: string; portion: "full" | "half" } } & Omit<ItemRow, "name" | "portion">>([
+    { $match: match },
+    { $unwind: "$items" },
+    {
+      $group: {
+        _id: { name: "$items.name", portion: { $ifNull: ["$items.portion", "full"] } },
+        qty: { $sum: "$items.quantity" },
+        revenue: { $sum: LINE_TOTAL },
+        costedQty: { $sum: { $cond: [HAS_COST, "$items.quantity", 0] } },
+        costedRevenue: { $sum: { $cond: [HAS_COST, LINE_TOTAL, 0] } },
+        costSum: { $sum: { $cond: [HAS_COST, { $multiply: ["$items.costPrice", "$items.quantity"] }, 0] } },
+      },
+    },
+  ]);
+  const items: ItemRow[] = rows.map((r) => ({
+    name: r._id.name,
+    portion: r._id.portion,
+    qty: r.qty,
+    revenue: r.revenue,
+    costedQty: r.costedQty,
+    costedRevenue: r.costedRevenue,
+    costSum: r.costSum,
+  }));
+  return {
+    revenue: totals?.revenue ?? 0,
+    orderCount: totals?.orderCount ?? 0,
+    itemsSold: items.reduce((s, i) => s + i.qty, 0),
+    items,
+  };
+}
+
+// GET /api/orders/summary — every dashboard figure for a period, aggregated in
+// the database. The browser used to fetch a page of orders and add them up,
+// which silently dropped everything past the page limit: at 1376 orders the
+// all-time total was short by a quarter, and each new order pushed an older one
+// out of the window, so new sales replaced old revenue instead of adding to it.
+router.get("/summary", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = summaryQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid query" });
+    }
+    const { from, to, prevFrom, prevTo, bucket, timezone } = parsed.data;
+
+    const match = rangeMatch(from, to);
+    // Shifting the clock back by the cutoff before truncating puts an order
+    // rung up at 00:46 into the previous day, exactly as dayRange does.
+    const businessDate = {
+      $subtract: ["$createdAt", BUSINESS_DAY_CUTOFF_HOUR * 60 * 60 * 1000],
+    };
+    // Hour buckets stay on the real timestamp: the day view's chart labels a
+    // trailing 12am bar itself, folding in the after-midnight tail.
+    const bucketKey =
+      bucket === "hour"
+        ? { $toString: { $hour: { date: "$createdAt", timezone } } }
+        : { $dateToString: { date: businessDate, format: bucket === "month" ? "%Y-%m" : "%Y-%m-%d", timezone } };
+
+    const [current, previous, series] = await Promise.all([
+      summarize(match),
+      prevFrom || prevTo
+        ? summarize(rangeMatch(prevFrom, prevTo))
+        : Promise.resolve({ revenue: 0, orderCount: 0, itemsSold: 0, items: [] as ItemRow[] }),
+      Order.aggregate<{ _id: string; value: number }>([
+        { $match: match },
+        { $group: { _id: bucketKey, value: { $sum: "$total" } } },
+        { $sort: { _id: 1 } },
+      ]),
+    ]);
+
+    res.json({
+      current,
+      previous,
+      series: series.map((b) => ({ key: b._id, value: b.value })),
+    });
   } catch (err) {
     next(err);
   }

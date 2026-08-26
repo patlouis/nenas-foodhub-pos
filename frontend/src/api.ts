@@ -1,5 +1,6 @@
 import type {
   Product, NewProduct, User, NewUser, Category, NewCategory, Order, NewOrderItem, Paginated, StockAdjustment, Expense,
+  OrderSummary,
 } from "./types"
 import { couldBeColdStart, COLD_START_HINT_MS } from "./coldStart"
 
@@ -286,6 +287,21 @@ export const expensesApi = {
 export const ordersApi = {
   list: (params?: OrderListParams) =>
     watchedFetch(`${ORDERS}${buildQuery(params)}`, { headers: authHeaders() }).then(handle<Paginated<Order>>),
+
+  // Every dashboard figure for a period, aggregated server-side. Summing a
+  // page of orders in the browser silently dropped everything past the page
+  // limit, so totals stopped growing once the shop passed it.
+  summary: (params: {
+    from?: string
+    to?: string
+    prevFrom?: string
+    prevTo?: string
+    bucket: "hour" | "day" | "month"
+    timezone: string
+  }) =>
+    watchedFetch(`${ORDERS}/summary${buildQuery(params)}`, { headers: authHeaders() }).then(
+      handle<OrderSummary>
+    ),
 
   // All-time order counts per hour, aggregated server-side so the dashboard
   // doesn't have to download every order to draw the peak-hours chart.

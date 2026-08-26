@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { Order, Product, Category, StockAdjustment, Expense } from "../types"
+import type { Order, OrderSummary, Product, Category, StockAdjustment, Expense, SummaryItemRow } from "../types"
 import { wastageReasonLabel, orderItemLabel } from "../types"
 import { ordersApi, productsApi, categoriesApi, stockAdjustmentsApi, expensesApi } from "../api"
 import { ErrorBanner, PageShell, SearchBox, selectDenseCls } from "../components/ui"
@@ -34,12 +34,6 @@ function getPrevRange(mode: DateMode, from: Date): [Date, Date] {
   return monthRange(toMonthStr(d))
 }
 
-function inRange(o: Order, from: Date, to: Date): boolean {
-  if (!o.createdAt) return false
-  const d = new Date(o.createdAt)
-  return d >= from && d <= to
-}
-
 function inRangeExpense(e: Expense, from: Date, to: Date): boolean {
   const d = new Date(e.date)
   return d >= from && d <= to
@@ -63,6 +57,14 @@ function periodLabel(mode: DateMode, pick: string): string {
   return new Date(pick + "-02").toLocaleDateString("en", { month: "long", year: "numeric" })
 }
 
+// Which bucket the trend chart asks the server for in each view.
+const TREND_BUCKET: Record<DateMode, "hour" | "day" | "month"> = {
+  all:   "month",
+  day:   "hour",
+  week:  "day",
+  month: "day",
+}
+
 const PREV_LABEL: Record<DateMode, string> = {
   all:   "",
   day:   "vs prev day",
@@ -78,9 +80,6 @@ function fmtPct(cur: number, prev: number): number | undefined {
   if (cur === 0 && prev === 0) return undefined
   if (prev === 0) return 100
   return ((cur - prev) / prev) * 100
-}
-function lt(item: Order["items"][number]): number {
-  return item.lineTotal ?? item.price * item.quantity
 }
 
 // ---- sub-components ----
@@ -313,7 +312,8 @@ const inputCls =
   "h-10 cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text-h)] outline-none transition focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 
 export default function DashboardPage() {
-  const [orders, setOrders] = useState<Order[]>([])
+  const [summary, setSummary] = useState<OrderSummary | null>(null)
+  const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [wastageAdjs, setWastageAdjs] = useState<StockAdjustment[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -364,22 +364,33 @@ export default function DashboardPage() {
     })()
   }, [])
 
-  // Period data is fetched scoped to the selected range instead of pulling the
-  // whole history down and filtering in the browser. The window starts at the
-  // previous period because the KPI cards compare against it.
+  // Every order figure is aggregated by the server. Summing a page of orders in
+  // the browser understated all of them once the shop passed the page limit,
+  // and worse, each new order pushed an older one out of the window — so new
+  // sales replaced old revenue rather than adding to it.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       setRefreshing(true)
       const range = dateMode === "all" ? {} : { from: prvFrom.toISOString(), to: curTo.toISOString() }
+      const period = dateMode === "all" ? {} : { from: curFrom.toISOString(), to: curTo.toISOString() }
       try {
-        const [o, w, ex] = await Promise.all([
-          ordersApi.list({ limit: 1000, ...range }),
+        const [s, recent, w, ex] = await Promise.all([
+          ordersApi.summary({
+            ...period,
+            ...(dateMode === "all" ? {} : { prevFrom: prvFrom.toISOString(), prevTo: prvTo.toISOString() }),
+            bucket: TREND_BUCKET[dateMode],
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+          // The Recent Orders panel wants five rows, not a total — a page of
+          // five is exactly right and can't truncate anything that matters.
+          ordersApi.list({ limit: 5, ...period }),
           stockAdjustmentsApi.list({ type: "wastage", limit: 1000, ...range }),
           expensesApi.list({ limit: 1000, ...range }),
         ])
         if (cancelled) return
-        setOrders(o.data)
+        setSummary(s)
+        setRecentOrders(recent.data.filter((o) => o.status !== "voided" && o.orderType !== "staff_meal"))
         setWastageAdjs(w.data)
         setExpenses(ex.data)
       } catch (err) {
@@ -396,22 +407,13 @@ export default function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [dateMode, prvFrom, curTo])
+  }, [dateMode, curFrom, prvFrom, prvTo, curTo])
 
-  // Voided and staff meal orders are excluded from all revenue/profit metrics.
-  const activeOrders = useMemo(
-    () => orders.filter((o) => o.status !== "voided" && o.orderType !== "staff_meal"),
-    [orders],
-  )
-
-  const curOrders = useMemo(
-    () => activeOrders.filter((o) => inRange(o, curFrom, curTo)),
-    [activeOrders, curFrom, curTo],
-  )
-  const prvOrders = useMemo(
-    () => activeOrders.filter((o) => inRange(o, prvFrom, prvTo)),
-    [activeOrders, prvFrom, prvTo],
-  )
+  // Voided and staff meal orders are excluded from every figure below — the
+  // server leaves them out of the aggregate rather than the browser filtering
+  // them after the fact.
+  const cur = summary?.current
+  const prv = summary?.previous
 
   const curExpenses = useMemo(() => {
     const active = expenses.filter((e) => !e.voided)
@@ -422,12 +424,10 @@ export default function DashboardPage() {
 
 
   // KPIs
-  const curRevenue   = useMemo(() => curOrders.reduce((s, o) => s + o.total, 0), [curOrders])
-  const prvRevenue   = useMemo(() => prvOrders.reduce((s, o) => s + o.total, 0), [prvOrders])
-  const curItemsSold = useMemo(
-    () => curOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.quantity, 0), 0),
-    [curOrders],
-  )
+  const curRevenue   = cur?.revenue ?? 0
+  const prvRevenue   = prv?.revenue ?? 0
+  const curItemsSold = cur?.itemsSold ?? 0
+  const curOrderCount = cur?.orderCount ?? 0
 
   // Wastage — loss from written-off stock, from stock_adjustments collection.
   const curWastageAdjs = useMemo(
@@ -447,50 +447,55 @@ export default function DashboardPage() {
     () => new Map(products.map((p) => [p.name, p.costPrice ?? null])),
     [products],
   )
-  // Snapshotted cost first, falling back to the current catalog for legacy
-  // orders. Never fall back for a half serving: the catalog figure is the full
-  // portion's cost, so using it would report a wild loss on every half. A half
-  // line always carries its own snapshot, even when that snapshot is null.
-  const itemCost = (item: Order["items"][number]) =>
-    item.costPrice ?? (item.portion === "half" ? null : costByName.get(item.name) ?? null)
+  // The server has already netted off every line that carried a cost snapshot.
+  // What it can't do is the fallback: a line sold without one is costed from
+  // the current catalog by name, and never for a half serving — the catalog
+  // figure is the full portion's cost, so using it would report a wild loss on
+  // every half.
+  const fallbackCost = (row: SummaryItemRow) =>
+    row.portion === "half" ? null : costByName.get(row.name) ?? null
 
-  const calcProfit = (orderList: Order[]) =>
-    orderList.reduce((sum, o) => {
-      for (const item of o.items) {
-        const cost = itemCost(item)
-        if (cost != null) sum += lt(item) - cost * item.quantity
+  const calcProfit = (rows: SummaryItemRow[] | undefined) =>
+    (rows ?? []).reduce((sum, row) => {
+      sum += row.costedRevenue - row.costSum
+      const uncostedQty = row.qty - row.costedQty
+      if (uncostedQty > 0) {
+        const cost = fallbackCost(row)
+        if (cost != null) sum += row.revenue - row.costedRevenue - cost * uncostedQty
       }
       return sum
     }, 0)
-  const curProfit = useMemo(() => calcProfit(curOrders), [curOrders, costByName])
-  const prvProfit = useMemo(() => calcProfit(prvOrders), [prvOrders, costByName])
-  const missingCostCount = useMemo(() => {
-    const missing = new Set<string>()
-    for (const o of curOrders) {
-      for (const item of o.items) {
-        if (itemCost(item) == null) missing.add(orderItemLabel(item))
-      }
-    }
-    return missing.size
-  }, [curOrders, costByName])
+  const curProfit = useMemo(() => calcProfit(cur?.items), [cur, costByName])
+  const prvProfit = useMemo(() => calcProfit(prv?.items), [prv, costByName])
+  // One entry per label that sold anything with no cost to apply at all.
+  const missingCostCount = useMemo(
+    () =>
+      (cur?.items ?? []).filter(
+        (row) => row.qty > row.costedQty && fallbackCost(row) == null,
+      ).length,
+    [cur, costByName],
+  )
 
   // Revenue trend — adapts to selected mode
   const revenueTrend = useMemo(() => {
+    // The server returns only buckets that saw sales; every view below lays out
+    // its own axis and reads values off this map, so empty days still get a bar.
+    const byKey = new Map((summary?.series ?? []).map((b) => [b.key, b.value]))
+    const at = (key: string) => byKey.get(key) ?? 0
+
     if (dateMode === "all") {
-      if (activeOrders.length === 0) return []
-      const earliest = activeOrders.reduce((min, o) => {
-        const d = new Date(o.createdAt!)
-        return d < min ? d : min
-      }, new Date())
+      if (byKey.size === 0) return []
+      // One bar per month from the first month with sales to now, so a quiet
+      // month reads as a gap in the run rather than vanishing from the axis.
+      const [firstYear, firstMonth] = [...byKey.keys()].sort()[0].split("-").map(Number)
       const bars: { label: string; value: number }[] = []
-      const cursor = new Date(earliest.getFullYear(), earliest.getMonth(), 1)
+      const cursor = new Date(firstYear, firstMonth - 1, 1)
       const now = new Date()
       while (cursor <= now) {
-        const [mFrom, mTo] = monthRange(toMonthStr(cursor))
-        const value = activeOrders
-          .filter((o) => o.createdAt && inRange(o, mFrom, mTo))
-          .reduce((s, o) => s + o.total, 0)
-        bars.push({ label: cursor.toLocaleDateString("en", { month: "short", year: "2-digit" }), value })
+        bars.push({
+          label: cursor.toLocaleDateString("en", { month: "short", year: "2-digit" }),
+          value: at(toMonthStr(cursor)),
+        })
         cursor.setMonth(cursor.getMonth() + 1)
       }
       return bars
@@ -503,61 +508,49 @@ export default function DashboardPage() {
       // after-midnight closing tail (00:00 up to the cutoff), which still
       // belongs to this business day.
       const indices = [...Array.from({ length: 18 }, (_, i) => i + 6), 0]
-      return indices.map((h) => {
-        const value = curOrders
-          .filter((o) => {
-            if (!o.createdAt) return false
-            const oh = new Date(o.createdAt).getHours()
-            return h === 0 ? oh < BUSINESS_DAY_CUTOFF_HOUR : oh === h
-          })
-          .reduce((s, o) => s + o.total, 0)
-        return { label: hourLabel(h), value }
-      })
+      return indices.map((h) => ({
+        label: hourLabel(h),
+        value:
+          h === 0
+            ? Array.from({ length: BUSINESS_DAY_CUTOFF_HOUR }, (_, i) => at(String(i))).reduce((s, v) => s + v, 0)
+            : at(String(h)),
+      }))
     }
     if (dateMode === "week") {
       const [wFrom] = weekRange(datePick)
       const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-      return Array.from({ length: 7 }, (_, i) => {
-        // Bucket by business day so the per-day bars match the Day view.
-        const [from, to] = dayRange(toDateStr(new Date(wFrom.getTime() + i * 86400000)))
-        const value = activeOrders
-          .filter((o) => o.createdAt && inRange(o, from, to))
-          .reduce((s, o) => s + o.total, 0)
-        return { label: days[i], value }
-      })
+      return Array.from({ length: 7 }, (_, i) => ({
+        label: days[i],
+        value: at(toDateStr(new Date(wFrom.getTime() + i * 86400000))),
+      }))
     }
     // month: one bar per business day
     const [my, mm] = datePick.split("-").map(Number)
     const daysInMonth = new Date(my, mm, 0).getDate()
-    return Array.from({ length: daysInMonth }, (_, i) => {
-      const [from, to] = dayRange(`${datePick}-${String(i + 1).padStart(2, "0")}`)
-      const value = activeOrders
-        .filter((o) => o.createdAt && inRange(o, from, to))
-        .reduce((s, o) => s + o.total, 0)
-      return { label: String(i + 1), value }
-    })
-  }, [dateMode, datePick, curOrders, activeOrders])
+    return Array.from({ length: daysInMonth }, (_, i) => ({
+      label: String(i + 1),
+      value: at(`${datePick}-${String(i + 1).padStart(2, "0")}`),
+    }))
+  }, [dateMode, datePick, summary])
 
   const trendTitle = dateMode === "day" ? "Hourly Revenue" : dateMode === "all" ? "Monthly Revenue" : "Daily Revenue"
 
   // Top products
   const topProducts = useMemo(() => {
-    // Halves report as their own row: they sell at a different price and
-    // margin, so folding them into the full serving would hide both. The raw
-    // product name rides along because the category lookup is keyed on it —
-    // "Adobo (half)" would miss and fall into Other.
-    const map = new Map<string, { name: string; qty: number; revenue: number }>()
-    for (const o of curOrders) {
-      for (const item of o.items) {
-        const label = orderItemLabel(item)
-        const e = map.get(label) ?? { name: item.name, qty: 0, revenue: 0 }
-        map.set(label, { name: item.name, qty: e.qty + item.quantity, revenue: e.revenue + lt(item) })
-      }
-    }
-    return [...map.entries()]
-      .sort((a, b) => b[1].qty - a[1].qty)
-      .map(([label, d]) => ({ label, name: d.name, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
-  }, [curOrders])
+    // The server groups by name and portion, which is the same split this list
+    // wants: halves report as their own row because they sell at a different
+    // price and margin, and folding them in would hide both. The raw product
+    // name rides along because the category lookup is keyed on it — "Adobo
+    // (Half)" would miss and fall into Other.
+    return [...(cur?.items ?? [])]
+      .sort((a, b) => b.qty - a.qty)
+      .map((row) => ({
+        label: orderItemLabel(row),
+        name: row.name,
+        value: row.qty,
+        sub: `${fmtMoney(row.revenue)} revenue`,
+      }))
+  }, [cur])
 
   // Product name → category name. Order items carry a snapshot of the product
   // name, so anything since renamed or deleted falls through to "Other" —
@@ -592,17 +585,15 @@ export default function DashboardPage() {
   // Category breakdown — qty sold + revenue
   const categoryRevenue = useMemo(() => {
     const map = new Map<string, { qty: number; revenue: number }>()
-    for (const o of curOrders) {
-      for (const item of o.items) {
-        const cat = catByProductName.get(item.name) ?? "Other"
-        const e = map.get(cat) ?? { qty: 0, revenue: 0 }
-        map.set(cat, { qty: e.qty + item.quantity, revenue: e.revenue + lt(item) })
-      }
+    for (const row of cur?.items ?? []) {
+      const cat = catByProductName.get(row.name) ?? "Other"
+      const e = map.get(cat) ?? { qty: 0, revenue: 0 }
+      map.set(cat, { qty: e.qty + row.qty, revenue: e.revenue + row.revenue })
     }
     return [...map.entries()]
       .sort((a, b) => b[1].qty - a[1].qty)
       .map(([label, d]) => ({ label, value: d.qty, sub: `${fmtMoney(d.revenue)} revenue` }))
-  }, [curOrders, catByProductName])
+  }, [cur, catByProductName])
 
   // Peak hours — always all-time for enough signal, so the counts come from the
   // server aggregate rather than the period-scoped orders held here.
@@ -633,8 +624,6 @@ export default function DashboardPage() {
     [products],
   )
 
-  // Recent orders within selected period
-  const recentOrders = useMemo(() => curOrders.slice(0, 5), [curOrders])
 
   if (loading) {
     return (
@@ -730,7 +719,7 @@ export default function DashboardPage() {
         <KpiCard
           label="Items Sold"
           value={String(curItemsSold)}
-          note={`across ${curOrders.length} order${curOrders.length === 1 ? "" : "s"}`}
+          note={`across ${curOrderCount} order${curOrderCount === 1 ? "" : "s"}`}
         />
       </div>
 

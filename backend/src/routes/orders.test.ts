@@ -347,6 +347,120 @@ describe("PATCH /api/orders/:id/void", () => {
   });
 });
 
+describe("GET /api/orders/summary", () => {
+  // Written directly rather than placed through the API so createdAt can be
+  // set: every figure here is period-scoped, and the 4am business-day
+  // boundary only shows up with orders on both sides of it.
+  async function orderAtTime(iso: string, total: number, extra: Record<string, unknown> = {}) {
+    return Order.create({
+      items: [{ product: new mongoose.Types.ObjectId(), name: "Adobo", price: total, portion: "full", quantity: 1, lineTotal: total }],
+      total,
+      createdAt: new Date(iso),
+      ...extra,
+    });
+  }
+
+  it("sums every matching order, not just the first page", async () => {
+    const { token } = await loginAs("admin");
+    // Past the 1000-row page cap the dashboard used to sum in the browser.
+    const docs = Array.from({ length: 1200 }, (_, i) => ({
+      items: [{ product: new mongoose.Types.ObjectId(), name: "Adobo", price: 10, portion: "full", quantity: 1, lineTotal: 10 }],
+      total: 10,
+      createdAt: new Date(`2026-08-${String((i % 20) + 1).padStart(2, "0")}T06:00:00Z`),
+    }));
+    await Order.insertMany(docs);
+
+    const res = await request(app)
+      .get("/api/orders/summary")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.current.orderCount).toBe(1200);
+    expect(res.body.current.revenue).toBe(12000);
+  });
+
+  it("excludes voided and staff meal orders from every figure", async () => {
+    const { token } = await loginAs("admin");
+    await orderAtTime("2026-08-10T06:00:00Z", 100);
+    await orderAtTime("2026-08-10T07:00:00Z", 500, { status: "voided" });
+    await orderAtTime("2026-08-10T08:00:00Z", 700, { orderType: "staff_meal" });
+
+    const res = await request(app)
+      .get("/api/orders/summary")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.current.revenue).toBe(100);
+    expect(res.body.current.orderCount).toBe(1);
+    expect(res.body.current.itemsSold).toBe(1);
+  });
+
+  it("scopes to the requested range and reports the previous one alongside", async () => {
+    const { token } = await loginAs("admin");
+    await orderAtTime("2026-07-15T06:00:00Z", 300); // previous month
+    await orderAtTime("2026-08-15T06:00:00Z", 100); // current month
+
+    const res = await request(app)
+      .get("/api/orders/summary")
+      .query({
+        from: "2026-08-01T00:00:00Z", to: "2026-08-31T23:59:59Z",
+        prevFrom: "2026-07-01T00:00:00Z", prevTo: "2026-07-31T23:59:59Z",
+      })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.current.revenue).toBe(100);
+    expect(res.body.previous.revenue).toBe(300);
+  });
+
+  it("buckets an after-midnight order into the previous business day", async () => {
+    const { token } = await loginAs("admin");
+    // 00:46 Manila on the 16th — rung up after closing, so it belongs to the
+    // 15th, matching the 4am cutoff the date helpers use.
+    await orderAtTime("2026-08-15T16:46:00Z", 240);
+    await orderAtTime("2026-08-15T10:00:00Z", 60); // 18:00 on the 15th
+
+    const res = await request(app)
+      .get("/api/orders/summary")
+      .query({ bucket: "day", timezone: "Asia/Manila" })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const aug15 = res.body.series.find((b: { key: string }) => b.key === "2026-08-15");
+    expect(aug15?.value).toBe(300);
+    expect(res.body.series.find((b: { key: string }) => b.key === "2026-08-16")).toBeUndefined();
+  });
+
+  it("reports item cost so a half serving never borrows the full portion's", async () => {
+    const { token } = await loginAs("admin");
+    await Order.create({
+      items: [
+        { product: new mongoose.Types.ObjectId(), name: "Adobo", price: 60, costPrice: 30, portion: "full", quantity: 2, lineTotal: 120 },
+        // No snapshot: the client may only fall back to the catalog for a full
+        // serving, so the row has to say how much went uncosted.
+        { product: new mongoose.Types.ObjectId(), name: "Adobo", price: 35, costPrice: null, portion: "half", quantity: 1, lineTotal: 35 },
+      ],
+      total: 155,
+      createdAt: new Date("2026-08-10T06:00:00Z"),
+    });
+
+    const res = await request(app)
+      .get("/api/orders/summary")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const full = res.body.current.items.find((i: { portion: string }) => i.portion === "full");
+    const half = res.body.current.items.find((i: { portion: string }) => i.portion === "half");
+    expect(full).toMatchObject({ name: "Adobo", qty: 2, revenue: 120, costedQty: 2, costedRevenue: 120, costSum: 60 });
+    expect(half).toMatchObject({ name: "Adobo", qty: 1, revenue: 35, costedQty: 0, costedRevenue: 0, costSum: 0 });
+  });
+
+  it("requires authentication", async () => {
+    const res = await request(app).get("/api/orders/summary");
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("GET /api/orders", () => {
   it("paginates and reports totals", async () => {
     const { token } = await loginAs("cashier");
