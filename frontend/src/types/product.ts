@@ -14,6 +14,10 @@ export interface Product {
   halfCostPrice?: number | null
   discountQty?: number | null
   discountPrice?: number | null
+  // Set = this product offers an add-on sold alongside it, e.g. hot water for
+  // instant noodles. Label and amount travel together.
+  feeLabel?: string | null
+  feeAmount?: number | null
   createdAt?: string
   updatedAt?: string
 }

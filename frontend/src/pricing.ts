@@ -23,3 +23,9 @@ export function getLineTotal(p: Priceable, qty: number, portion: Portion = "full
   }
   return qty * p.price
 }
+
+// Mirrors the backend's computeFeeTotal (backend/src/lib/pricing.ts). Charged
+// per unit — each serving gets its own hot water — and never discounted.
+export function getFeeTotal(fee: number | null | undefined, qty: number): number {
+  return fee == null ? 0 : fee * qty
+}

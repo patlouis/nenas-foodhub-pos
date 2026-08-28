@@ -577,14 +577,28 @@ export default function DashboardPage() {
     // price and margin, and folding them in would hide both. The raw product
     // name rides along because the category lookup is keyed on it — "Adobo
     // (Half)" would miss and fall into Other.
-    return [...(cur?.items ?? [])]
-      .sort((a, b) => b.qty - a.qty)
-      .map((row) => ({
+    // Add-ons are listed alongside the dishes: they were sold and they earned,
+    // and including them is what makes this list add up to the Revenue card.
+    // They carry no product name, so the category lookup drops them in Other.
+    const feeRows = (cur?.fees ?? []).map((f) => ({
+      label: f.label,
+      name: "",
+      value: f.qty,
+      sub: `${fmtMoney(f.revenue)} revenue`,
+      qty: f.qty,
+    }))
+    return [
+      ...(cur?.items ?? []).map((row) => ({
         label: orderItemLabel(row),
         name: row.name,
         value: row.qty,
         sub: `${fmtMoney(row.revenue)} revenue`,
-      }))
+        qty: row.qty,
+      })),
+      ...feeRows,
+    ]
+      .sort((a, b) => b.qty - a.qty)
+      .map(({ qty: _qty, ...row }) => row)
   }, [cur])
 
   // Product name → category name. Order items carry a snapshot of the product

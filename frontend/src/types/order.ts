@@ -12,6 +12,11 @@ export interface OrderItem {
   portion?: Portion // absent on orders placed before half servings existed
   quantity: number
   lineTotal: number // actual amount charged (may differ from price × qty when discounted)
+  // An add-on sold with this line. Kept out of lineTotal so per-product revenue
+  // and fee income stay separately answerable; order.total includes both.
+  feeLabel?: string | null
+  feeAmount?: number | null
+  feeTotal?: number
 }
 
 // How a sold line reads wherever it's shown — receipt, history, reporting.
@@ -41,6 +46,8 @@ export interface NewOrderItem {
   productId: string
   quantity: number
   portion?: Portion
+  /** The add-on rate to charge, when the product offers one. */
+  fee?: number
 }
 
 // Dashboard figures, aggregated by the server. Sold quantities are split into
@@ -62,6 +69,9 @@ export interface SummaryPeriod {
   orderCount: number
   itemsSold: number
   items: SummaryItemRow[]
+  /** Add-on income, grouped by label. Not product revenue, but part of the
+   *  revenue figure above — goods + fees is what reconciles. */
+  fees: { label: string; qty: number; revenue: number }[]
 }
 
 export interface OrderSummary {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { Product, Category, User, TableKey, Portion } from "../types"
 import { TABLE_KEYS } from "../types"
 import { productsApi, categoriesApi, ordersApi, usersApi } from "../api"
-import { getLineTotal } from "../pricing"
+import { getLineTotal, getFeeTotal } from "../pricing"
 import { getChange } from "../tender"
 import { hasStockFor, isTracked, isUnavailable, stockLabel } from "../stock"
 import { useTableCarts, type CartLine } from "../hooks/useTableCarts"
@@ -18,6 +18,10 @@ function tableLabel(t: TableKey): string {
 function unitPrice(l: CartLine): number {
   return l.portion === "half" ? (l.product.halfPrice ?? l.product.price) : l.product.price
 }
+
+// The Half / add-on controls floated over a product card's bottom corner.
+const cardCtrlCls =
+  "flex h-9 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg border border-[var(--accent-border)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--accent)] transition hover:bg-[var(--accent)] hover:text-white"
 
 // h-10/w-10 (40px) — a touch-friendly size that still keeps cart rows compact.
 const qtyBtnCls =
@@ -85,7 +89,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
 
   const [category, setCategory] = useState("") // "" = All
   const [query, setQuery] = useState("")
-  const { activeTable, setActiveTable, cart, itemCounts, addToCart, setQty, removeLine, clearActive } =
+  const { activeTable, setActiveTable, cart, itemCounts, addToCart, setQty, setLineFee, removeLine, clearActive } =
     useTableCarts(products)
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
   const [isStaffMeal, setIsStaffMeal] = useState(false)
@@ -100,6 +104,12 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
   // distinct from a deliberate 0. Cleared every time the modal opens so one
   // customer's tender can never carry into the next order.
   const [amountReceived, setAmountReceived] = useState("")
+
+  // The add-on rate being typed, held until blur commits it. Only one box can
+  // have focus, so one draft is enough. Committing per keystroke would re-key
+  // the cart row — the rate is part of a line's identity — and tear the input
+  // out from under the cursor.
+  const [feeDraft, setFeeDraft] = useState<{ key: string; text: string } | null>(null)
 
   // Tracks the most recently tapped product so its cart-count badge can replay
   // a pop animation — gives instant tactile feedback on a tablet with no hover state.
@@ -254,14 +264,18 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     return sections
   }, [visibleProducts, category, query, categories, products])
 
-  function handleAdd(p: Product, portion: Portion = "full") {
+  function handleAdd(p: Product, portion: Portion = "full", fee: number | null = null) {
     setSuccess(null)
-    addToCart(p, portion)
+    addToCart(p, portion, fee)
     addTick.current += 1
     setJustAdded({ id: p._id, tick: addTick.current })
   }
 
-  const total = cart.reduce((sum, l) => sum + getLineTotal(l.product, l.quantity, l.portion), 0)
+  // What one line costs all in — goods plus its add-on.
+  const lineCost = (l: CartLine) =>
+    getLineTotal(l.product, l.quantity, l.portion) + getFeeTotal(l.fee, l.quantity)
+
+  const total = cart.reduce((sum, l) => sum + lineCost(l), 0)
   const itemCount = cart.reduce((sum, l) => sum + l.quantity, 0)
 
   // Change is only meaningful for cash: GCash is transferred to the exact
@@ -276,6 +290,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
     // The ½ control has to live outside the card button — a button can't nest
     // inside another button — so it's a sibling positioned over the corner.
     const offersHalf = p.halfPrice != null && !unavailable
+    const offersFee = p.feeAmount != null && p.feeLabel && !unavailable
     return (
       <div key={p._id} className="relative">
       <button
@@ -286,6 +301,10 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
           // already stretches; without it the button is content-sized, so a
           // wrapped name or a missing stock line leaves the row ragged.
           "relative flex h-full w-full flex-col items-start gap-2 rounded-xl border p-5 text-left transition sm:p-6 lg:p-4 xl:p-5 " +
+          // The Half / add-on controls float over the bottom corner, so the
+          // text has to stop short of them. On a two-column phone grid a card
+          // is ~170px wide and the stock line would otherwise run underneath.
+          (offersHalf || offersFee ? "pb-14 " : "") +
           (unavailable
             ? "cursor-not-allowed border-[var(--border)] opacity-50"
             : "cursor-pointer border-[var(--border)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-bg)]")
@@ -311,6 +330,14 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
             {p.discountQty}× for ₱{p.discountPrice!.toFixed(2)}
           </span>
         )}
+        {/* Names the add-on that the corner button charges for. The button has
+            room for the amount and nothing else, and its tooltip is no use on
+            a tablet — so the words have to be on the card itself. */}
+        {offersFee && (
+          <span className="max-w-full truncate text-xs tabular-nums text-[var(--accent)]">
+            {p.feeLabel} +₱{p.feeAmount!.toFixed(2)}
+          </span>
+        )}
         {/* Untracked is bookkeeping, not something the cashier acts on — only
             a shortage or a switched-off item earns words here. The empty line
             still holds its height: a row of nothing but untracked items would
@@ -324,15 +351,36 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
         </span>
       </button>
 
-      {offersHalf && (
-        <button
-          onClick={() => handleAdd(p, "half")}
-          aria-label={`Add half ${p.name} — ₱${p.halfPrice!.toFixed(2)}`}
-          title={`Half · ₱${p.halfPrice!.toFixed(2)}`}
-          className="absolute bottom-2.5 right-2.5 flex h-9 cursor-pointer items-center justify-center rounded-lg border border-[var(--accent-border)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--accent)] transition hover:bg-[var(--accent)] hover:text-white"
-        >
-          Half
-        </button>
+      {/* These can't nest inside the card button, so they're siblings floated
+          over its bottom corner. Laid out as one flex row rather than two
+          independently-positioned buttons: the fee amount sets its own width,
+          so any offset guessed against the Half button would eventually be
+          wrong. The card reserves this row's height in its padding. */}
+      {(offersHalf || offersFee) && (
+        <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+          {offersFee && (
+            // Adds the item *with* its add-on. Tapping the card itself adds it
+            // without — the customer taking the noodles home wants no water.
+            <button
+              onClick={() => handleAdd(p, "full", p.feeAmount!)}
+              aria-label={`Add ${p.name} with ${p.feeLabel} — ₱${p.feeAmount!.toFixed(2)}`}
+              title={`${p.feeLabel} · ₱${p.feeAmount!.toFixed(2)}`}
+              className={cardCtrlCls}
+            >
+              +₱{p.feeAmount!.toFixed(0)}
+            </button>
+          )}
+          {offersHalf && (
+            <button
+              onClick={() => handleAdd(p, "half")}
+              aria-label={`Add half ${p.name} — ₱${p.halfPrice!.toFixed(2)}`}
+              title={`Half · ₱${p.halfPrice!.toFixed(2)}`}
+              className={cardCtrlCls}
+            >
+              Half
+            </button>
+          )}
+        </div>
       )}
       </div>
     )
@@ -347,7 +395,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
       const tableNumber =
         !isStaffMeal && activeTable !== "order" ? Number(activeTable) : undefined
       const order = await ordersApi.create(
-        cart.map((l) => ({ productId: l.product._id, quantity: l.quantity, portion: l.portion })),
+        cart.map((l) => ({ productId: l.product._id, quantity: l.quantity, portion: l.portion, ...(l.fee != null ? { fee: l.fee } : {}) })),
         paymentMethod,
         isStaffMeal ? "staff_meal" : "sale",
         isStaffMeal && staffMealRecipient ? staffMealRecipient : undefined,
@@ -526,6 +574,52 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                         {Math.floor(l.quantity / l.product.discountQty)}× deal applied
                       </p>
                     )}
+                    {/* The rate is editable here rather than in the product:
+                        it's a one-off for this sale, not a repricing. */}
+                    {l.fee != null && (
+                      // min-w-0 + truncate on the label: the cart column is
+                      // narrow on a phone, and a long add-on name would
+                      // otherwise push the input and its × off the row.
+                      <label className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-[var(--accent)]">
+                        <span className="min-w-0 truncate">{l.product.feeLabel} ₱</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          // Typed into a draft and committed on blur, never per
+                          // keystroke. The rate is part of the line's identity,
+                          // so committing re-keys this row: React would tear
+                          // the input down mid-edit and focus would go with it,
+                          // leaving 10 impossible to carry on to 11. Holding
+                          // the text also keeps an emptied box empty, where
+                          // Number("") would otherwise commit ₱0.
+                          value={feeDraft?.key === l.key ? feeDraft.text : l.fee}
+                          onChange={(e) => setFeeDraft({ key: l.key, text: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur()
+                          }}
+                          onBlur={() => {
+                            const text = feeDraft?.key === l.key ? feeDraft.text : null
+                            setFeeDraft(null)
+                            if (text == null) return
+                            const next = Number(text)
+                            // Anything unusable leaves the committed rate as it
+                            // was, rather than guessing at what was meant.
+                            if (text.trim() === "" || Number.isNaN(next) || next < 0) return
+                            setLineFee(l, next)
+                          }}
+                          aria-label={`${l.product.feeLabel} rate for ${l.product.name}`}
+                          className="w-12 shrink-0 rounded border border-[var(--border)] bg-[var(--bg)] px-1 py-0.5 text-xs tabular-nums text-[var(--text-h)] outline-none focus-visible:border-[var(--accent)]"
+                        />
+                        <button
+                          onClick={() => setLineFee(l, null)}
+                          aria-label={`Remove ${l.product.feeLabel} from ${l.product.name}`}
+                          className="shrink-0 cursor-pointer px-1 text-sm leading-none text-[var(--text)] transition hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </label>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1">
@@ -550,7 +644,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                   </div>
 
                   <span className="w-16 shrink-0 text-right tabular-nums text-[var(--text-h)]">
-                    ₱{getLineTotal(l.product, l.quantity, l.portion).toFixed(2)}
+                    ₱{lineCost(l).toFixed(2)}
                   </span>
 
                   <button
@@ -665,7 +759,7 @@ export default function OrderPage({ pendingBarcodeSku, onBarcodeConsumed, active
                   {l.quantity} × ₱{unitPrice(l).toFixed(2)}
                 </span>
                 <span className="w-20 shrink-0 text-right tabular-nums text-[var(--text-h)]">
-                  ₱{getLineTotal(l.product, l.quantity, l.portion).toFixed(2)}
+                  ₱{lineCost(l).toFixed(2)}
                 </span>
               </li>
             ))}

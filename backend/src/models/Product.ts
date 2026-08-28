@@ -17,6 +17,11 @@ export interface IProduct {
   costPrice?: number | null;
   discountQty?: number | null;
   discountPrice?: number | null;
+  // An optional service sold alongside the item — hot water for instant
+  // noodles, and the like. Both fields are set together: an amount with no
+  // label could not be shown, and a label with no amount could not be charged.
+  feeLabel?: string | null;
+  feeAmount?: number | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -34,6 +39,8 @@ const productSchema = new mongoose.Schema<IProduct>(
     costPrice: { type: Number, default: null, min: 0 },
     discountQty: { type: Number, default: null, min: 2 },
     discountPrice: { type: Number, default: null, min: 0 },
+    feeLabel: { type: String, default: null, trim: true, maxlength: 30 },
+    feeAmount: { type: Number, default: null, min: 0 },
   },
   { timestamps: true }
 );

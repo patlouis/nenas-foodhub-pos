@@ -347,6 +347,122 @@ describe("PATCH /api/orders/:id/void", () => {
   });
 });
 
+describe("add-on fees", () => {
+  function noodles(overrides: Record<string, unknown> = {}) {
+    return Product.create({
+      name: "Instant noodles", price: 20, stock: 50, feeLabel: "Hot water", feeAmount: 5, ...overrides,
+    });
+  }
+
+  it("charges the fee per unit and keeps it out of the goods total", async () => {
+    const { token } = await loginAs("cashier");
+    const p = await noodles();
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: p._id.toString(), quantity: 3, fee: 5 }] });
+
+    expect(res.status).toBe(201);
+    const item = res.body.items[0];
+    expect(item.lineTotal).toBe(60); // goods only
+    expect(item.feeTotal).toBe(15); // 3 servings, 3 cups of water
+    expect(item.feeLabel).toBe("Hot water");
+    expect(res.body.total).toBe(75);
+  });
+
+  it("takes the label from the product, never from the request", async () => {
+    const { token } = await loginAs("cashier");
+    const p = await noodles();
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: p._id.toString(), quantity: 1, fee: 5, feeLabel: "Free beer" }] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.items[0].feeLabel).toBe("Hot water");
+  });
+
+  it("honours a rate the cashier edited down", async () => {
+    const { token } = await loginAs("cashier");
+    const p = await noodles();
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: p._id.toString(), quantity: 2, fee: 3 }] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.items[0].feeAmount).toBe(3);
+    expect(res.body.items[0].feeTotal).toBe(6);
+    expect(res.body.total).toBe(46);
+  });
+
+  it("keeps a line with the fee apart from one without", async () => {
+    const { token } = await loginAs("cashier");
+    const p = await noodles();
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [
+          { productId: p._id.toString(), quantity: 1, fee: 5 },
+          { productId: p._id.toString(), quantity: 1 },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    // Merging these would charge one cup of water for two servings.
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.total).toBe(45);
+  });
+
+  it("refuses a fee on a product that doesn't offer one", async () => {
+    const { token } = await loginAs("cashier");
+    const p = await Product.create({ name: "Coke", price: 20, stock: 10 });
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: p._id.toString(), quantity: 1, fee: 5 }] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no add-on/);
+  });
+
+  it("refuses a negative fee", async () => {
+    const { token } = await loginAs("cashier");
+    const p = await noodles();
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: p._id.toString(), quantity: 1, fee: -5 }] });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("gives a staff meal its add-on free like everything else", async () => {
+    const { token } = await loginAs("cashier");
+    const p = await noodles();
+
+    const res = await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        items: [{ productId: p._id.toString(), quantity: 1, fee: 5 }],
+        orderType: "staff_meal",
+        staffMealRecipient: "Ana",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.items[0].feeTotal).toBe(0);
+    expect(res.body.total).toBe(0);
+  });
+});
+
 describe("GET /api/orders/summary", () => {
   // Written directly rather than placed through the API so createdAt can be
   // set: every figure here is period-scoped, and the 4am business-day
@@ -458,6 +574,30 @@ describe("GET /api/orders/summary", () => {
   it("requires authentication", async () => {
     const res = await request(app).get("/api/orders/summary");
     expect(res.status).toBe(401);
+  });
+
+  it("reports fee income apart from goods, and the two reconcile", async () => {
+    const { token } = await loginAs("admin");
+    const p = await Product.create({
+      name: "Instant noodles", price: 20, stock: 50, feeLabel: "Hot water", feeAmount: 5,
+    });
+    await request(app)
+      .post("/api/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ items: [{ productId: p._id.toString(), quantity: 3, fee: 5 }] });
+
+    const res = await request(app)
+      .get("/api/orders/summary")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.current.fees).toEqual([{ label: "Hot water", qty: 3, revenue: 15 }]);
+    // Goods revenue stays the product's own, so its margin isn't flattered by
+    // the fee — but goods + fees is what the Revenue card shows.
+    const goods = res.body.current.items.reduce((s: number, i: { revenue: number }) => s + i.revenue, 0);
+    const fees = res.body.current.fees.reduce((s: number, f: { revenue: number }) => s + f.revenue, 0);
+    expect(goods).toBe(60);
+    expect(goods + fees).toBe(res.body.current.revenue);
   });
 });
 

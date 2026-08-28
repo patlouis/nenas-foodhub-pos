@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest"
-import { getLineTotal, type Portion, type Priceable } from "./pricing"
+import { getLineTotal, getFeeTotal, type Portion, type Priceable } from "./pricing"
 import sharedCases from "../../pricing-cases.json"
 
 // Shared with backend/src/lib/pricing.test.ts. The two implementations are
 // hand-mirrored, so this is the only thing that forces them to agree.
 type SharedCase = { name: string; product: Priceable; qty: number; portion: Portion | null; expected: number }
-const shared = sharedCases as unknown as { cases: SharedCase[] }
+type FeeCase = { name: string; fee: number | null; qty: number; expected: number }
+const shared = sharedCases as unknown as { cases: SharedCase[]; feeCases: FeeCase[] }
 
 describe("getLineTotal — shared truth table", () => {
   for (const c of shared.cases) {
@@ -61,5 +62,17 @@ describe("getLineTotal", () => {
   it("ignores a discount with no discountPrice set", () => {
     const product = { price: 50, discountQty: 3, discountPrice: null }
     expect(getLineTotal(product, 6)).toBe(300)
+  })
+})
+
+describe("getFeeTotal — shared truth table", () => {
+  for (const c of shared.feeCases) {
+    it(c.name, () => {
+      expect(getFeeTotal(c.fee, c.qty)).toBe(c.expected)
+    })
+  }
+
+  it("treats an absent fee the same as none", () => {
+    expect(getFeeTotal(undefined, 3)).toBe(0)
   })
 })

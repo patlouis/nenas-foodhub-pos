@@ -4,7 +4,7 @@ import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { computeLineTotal, type Portion } from "../lib/pricing.js";
+import { computeLineTotal, computeFeeTotal, type Portion } from "../lib/pricing.js";
 import { createOrderSchema, listOrdersQuerySchema, peakHoursQuerySchema, summaryQuerySchema } from "../schemas/orders.js";
 import { paginate } from "../schemas/pagination.js";
 
@@ -163,6 +163,24 @@ async function summarize(match: Record<string, unknown>) {
       },
     },
   ]);
+  // Add-on income, grouped by label. Reported apart from the item rows because
+  // it is not product revenue — but it IS part of order.total, so the two
+  // together are what reconciles against the revenue figure above. Folding it
+  // into a product row instead would inflate that product's margin.
+  const feeRows = await Order.aggregate<{ _id: string; qty: number; revenue: number }>([
+    { $match: match },
+    { $unwind: "$items" },
+    { $match: { "items.feeTotal": { $gt: 0 } } },
+    {
+      $group: {
+        _id: { $ifNull: ["$items.feeLabel", "Fee"] },
+        qty: { $sum: "$items.quantity" },
+        revenue: { $sum: "$items.feeTotal" },
+      },
+    },
+    { $sort: { revenue: -1 } },
+  ]);
+
   const items: ItemRow[] = rows.map((r) => ({
     name: r._id.name,
     portion: r._id.portion,
@@ -177,6 +195,7 @@ async function summarize(match: Record<string, unknown>) {
     orderCount: totals?.orderCount ?? 0,
     itemsSold: items.reduce((s, i) => s + i.qty, 0),
     items,
+    fees: feeRows.map((f) => ({ label: f._id, qty: f.qty, revenue: f.revenue })),
   };
 }
 
@@ -210,7 +229,13 @@ router.get("/summary", requireAuth, async (req: Request, res: Response, next: Ne
       summarize(match),
       prevFrom || prevTo
         ? summarize(rangeMatch(prevFrom, prevTo))
-        : Promise.resolve({ revenue: 0, orderCount: 0, itemsSold: 0, items: [] as ItemRow[] }),
+        : Promise.resolve({
+            revenue: 0,
+            orderCount: 0,
+            itemsSold: 0,
+            items: [] as ItemRow[],
+            fees: [] as { label: string; qty: number; revenue: number }[],
+          }),
       Order.aggregate<{ _id: string; value: number }>([
         { $match: match },
         { $group: { _id: bucketKey, value: { $sum: "$total" } } },
@@ -233,22 +258,25 @@ router.get("/summary", requireAuth, async (req: Request, res: Response, next: Ne
 // prices are looked up server-side so a tampered request can't set its own
 // prices, and the stored snapshot always matches the catalog at sale time.
 router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Request, res: Response) => {
-  const rawItems = req.body.items as { productId: string; quantity: number; portion: Portion }[];
+  const rawItems = req.body.items as { productId: string; quantity: number; portion: Portion; fee?: number }[];
   const paymentMethod: "cash" | "gcash" = req.body.paymentMethod ?? "cash";
   const orderType: "sale" | "staff_meal" = req.body.orderType ?? "sale";
   const staffMealRecipient: string | undefined = req.body.staffMealRecipient || undefined;
   // Staff meals aren't customer table sales, so they never carry a table number.
   const tableNumber: number | undefined = orderType === "staff_meal" ? undefined : req.body.tableNumber;
 
-  // Merge duplicates, keyed by product *and* portion: a full and a half of the
-  // same dish are priced differently and stay separate lines.
-  const qtyByKey = new Map<string, { productId: string; portion: Portion; quantity: number }>();
+  // Merge duplicates, keyed by product, portion *and* fee: a full and a half of
+  // the same dish are priced differently, and so are two of the same noodles
+  // where only one was sold with hot water. Merging those would charge one fee
+  // for both servings.
+  const qtyByKey = new Map<string, { productId: string; portion: Portion; quantity: number; fee: number | null }>();
   for (const it of rawItems) {
     const portion: Portion = it.portion ?? "full";
-    const key = `${it.productId}:${portion}`;
+    const fee = it.fee ?? null;
+    const key = `${it.productId}:${portion}:${fee ?? "none"}`;
     const existing = qtyByKey.get(key);
     if (existing) existing.quantity += it.quantity;
-    else qtyByKey.set(key, { productId: it.productId, portion, quantity: it.quantity });
+    else qtyByKey.set(key, { productId: it.productId, portion, quantity: it.quantity, fee });
   }
   const items = [...qtyByKey.values()];
 
@@ -264,12 +292,21 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
     if (it.portion === "half" && p.halfPrice == null) {
       return res.status(400).json({ error: `${p.name} is not sold as a half serving` });
     }
+    // Same guard for the add-on: a stale client could still be offering a fee
+    // that has since been taken off the product.
+    if (it.fee != null && p.feeAmount == null) {
+      return res.status(400).json({ error: `${p.name} has no add-on to charge for` });
+    }
   }
 
   const orderItems = items.map((it) => {
     const p = byId.get(it.productId)!;
     const half = it.portion === "half";
     const lineTotal = orderType === "staff_meal" ? 0 : computeLineTotal(p, it.quantity, it.portion);
+    // A staff meal is free, add-on included. Elsewhere the rate is whatever the
+    // cashier settled on, but the label always comes from the product — the
+    // client could otherwise write its own words onto the receipt.
+    const feeAmount = orderType === "staff_meal" || it.fee == null ? null : it.fee;
     return {
       product: p._id,
       name: p.name,
@@ -280,9 +317,15 @@ router.post("/", requireAuth, validateBody(createOrderSchema), async (req: Reque
       portion: it.portion,
       quantity: it.quantity,
       lineTotal,
+      feeLabel: feeAmount == null ? null : p.feeLabel ?? "Fee",
+      feeAmount,
+      feeTotal: computeFeeTotal(feeAmount, it.quantity),
     };
   });
-  const total = orderType === "staff_meal" ? 0 : orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
+  const total =
+    orderType === "staff_meal"
+      ? 0
+      : orderItems.reduce((sum, i) => sum + i.lineTotal + i.feeTotal, 0);
 
   // Stock decrements + order-number assignment + the order insert all happen
   // in one transaction per attempt, so a crash mid-request can't leave stock

@@ -17,9 +17,22 @@ export const createProductSchema = z.object({
   halfCostPrice: z.number().min(0, "halfCostPrice must be 0 or greater").nullable().optional(),
   discountQty: z.number().int().min(2, "discountQty must be at least 2").nullable().optional(),
   discountPrice: z.number().min(0, "discountPrice must be 0 or greater").nullable().optional(),
+  // Present = this product offers an add-on, e.g. hot water for noodles.
+  feeLabel: z.string().trim().min(1).max(30).nullable().optional(),
+  feeAmount: z.number().min(0, "feeAmount must be 0 or greater").nullable().optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();
+
+// The two fee fields only mean anything together: an amount with no label
+// can't be shown on a receipt, and a label with no amount can't be charged.
+// Checked against the merged result in the route, not the patch, so clearing
+// one half of the pair is caught.
+export function feePairError(feeLabel?: string | null, feeAmount?: number | null): string | null {
+  if (feeAmount != null && !feeLabel) return "An add-on fee needs a label";
+  if (feeLabel && feeAmount == null) return "An add-on fee needs an amount";
+  return null;
+}
 
 export const adjustStockSchema = z.object({
   delta: z

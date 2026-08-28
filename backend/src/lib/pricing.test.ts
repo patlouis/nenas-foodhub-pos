@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { computeLineTotal, type Portion, type Priceable } from "./pricing.js";
+import { computeLineTotal, computeFeeTotal, type Portion, type Priceable } from "./pricing.js";
 
 // Shared with frontend/src/pricing.test.ts. The two implementations are
 // hand-mirrored, so this is the only thing that forces them to agree.
 type SharedCase = { name: string; product: Priceable; qty: number; portion: Portion | null; expected: number };
+type FeeCase = { name: string; fee: number | null; qty: number; expected: number };
 const shared = JSON.parse(
   readFileSync(new URL("../../../pricing-cases.json", import.meta.url), "utf8"),
-) as { cases: SharedCase[] };
+) as { cases: SharedCase[]; feeCases: FeeCase[] };
 
 describe("computeLineTotal — shared truth table", () => {
   for (const c of shared.cases) {
@@ -74,5 +75,17 @@ describe("computeLineTotal — half portions", () => {
 
   it("treats an omitted portion as full", () => {
     expect(computeLineTotal({ price: 60, halfPrice: 35 }, 2)).toBe(120);
+  });
+});
+
+describe("computeFeeTotal — shared truth table", () => {
+  for (const c of shared.feeCases) {
+    it(c.name, () => {
+      expect(computeFeeTotal(c.fee, c.qty)).toBe(c.expected);
+    });
+  }
+
+  it("treats an absent fee the same as none", () => {
+    expect(computeFeeTotal(undefined, 3)).toBe(0);
   });
 });

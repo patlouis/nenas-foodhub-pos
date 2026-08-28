@@ -26,3 +26,11 @@ export function computeLineTotal(p: Priceable, qty: number, portion: Portion = "
   }
   return qty * p.price;
 }
+
+// What an add-on fee adds to a line: charged per unit, since each serving gets
+// its own hot water. Never discounted — the bulk deal is priced against the
+// goods, not the service. Kept out of computeLineTotal so per-product revenue
+// and fee income stay separately answerable.
+export function computeFeeTotal(fee: number | null | undefined, qty: number): number {
+  return fee == null ? 0 : fee * qty;
+}

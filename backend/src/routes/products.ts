@@ -4,7 +4,7 @@ import Product from "../models/Product.js";
 import StockAdjustment from "../models/StockAdjustment.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { createProductSchema, updateProductSchema, adjustStockSchema, wastageSchema, listProductsQuerySchema } from "../schemas/products.js";
+import { createProductSchema, updateProductSchema, adjustStockSchema, wastageSchema, listProductsQuerySchema, feePairError } from "../schemas/products.js";
 import { paginate } from "../schemas/pagination.js";
 
 const router = Router();
@@ -90,6 +90,8 @@ router.post("/", requireAuth, requireAdmin, validateBody(createProductSchema), a
     if (halfConflictsWithStock(data.stock === undefined ? 0 : data.stock, data.halfPrice)) {
       return res.status(400).json({ error: HALF_TRACKED_ERROR });
     }
+    const feeError = feePairError(data.feeLabel, data.feeAmount);
+    if (feeError) return res.status(400).json({ error: feeError });
     const product = await Product.create(data);
     if (product.stock !== null && product.stock > 0) {
       await StockAdjustment.create({
@@ -118,13 +120,18 @@ router.put("/:id", requireAuth, requireAdmin, validateBody(updateProductSchema),
     if (!data.sku) data.sku = undefined;
     // Checked against the merged result, not the patch: turning tracking on
     // without mentioning halfPrice must still be caught, and vice versa.
-    const existing = await Product.findById(req.params.id, { stock: 1, halfPrice: 1 });
+    const existing = await Product.findById(req.params.id, { stock: 1, halfPrice: 1, feeLabel: 1, feeAmount: 1 });
     if (!existing) return res.status(404).json({ error: "Not found" });
     const nextStock = "stock" in data ? data.stock : existing.stock;
     const nextHalf = "halfPrice" in data ? data.halfPrice : existing.halfPrice;
     if (halfConflictsWithStock(nextStock, nextHalf)) {
       return res.status(400).json({ error: HALF_TRACKED_ERROR });
     }
+    const feeError = feePairError(
+      "feeLabel" in data ? data.feeLabel : existing.feeLabel,
+      "feeAmount" in data ? data.feeAmount : existing.feeAmount,
+    );
+    if (feeError) return res.status(400).json({ error: feeError });
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       data,

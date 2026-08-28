@@ -12,5 +12,13 @@
     { "name": "full still takes the bulk deal on the same product", "product": { "price": 60, "halfPrice": 35, "discountQty": 3, "discountPrice": 150 }, "qty": 3, "portion": "full", "expected": 150 },
     { "name": "missing halfPrice charges full rather than nothing", "product": { "price": 60 }, "qty": 1, "portion": "half", "expected": 60 },
     { "name": "omitted portion is treated as full", "product": { "price": 60, "halfPrice": 35 }, "qty": 2, "portion": null, "expected": 120 }
+  ],
+  "_feeComment": "Add-on fees (hot water for instant noodles, and the like). Charged per unit, never discounted, and kept apart from the goods total so per-product revenue and fee income stay separately answerable.",
+  "feeCases": [
+    { "name": "no fee on the line", "fee": null, "qty": 3, "expected": 0 },
+    { "name": "one unit at the default rate", "fee": 5, "qty": 1, "expected": 5 },
+    { "name": "charged per unit, not per line", "fee": 5, "qty": 3, "expected": 15 },
+    { "name": "an edited-down rate is honoured", "fee": 3, "qty": 2, "expected": 6 },
+    { "name": "a waived fee costs nothing", "fee": 0, "qty": 4, "expected": 0 }
   ]
 }

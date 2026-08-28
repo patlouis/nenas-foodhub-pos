@@ -82,6 +82,12 @@ function buildReceiptHtml(order: Order): string {
     lines.push(esc(orderItemLabel(item)))
     // No leading indent — this line stays flush with the product name above it.
     lines.push(row(`${item.quantity} x ${item.price.toFixed(2)}`, lineTotal))
+    // The add-on gets its own indented line so the customer can see what the
+    // extra was for, rather than wondering why the noodles cost more than the
+    // menu says.
+    if (item.feeTotal) {
+      lines.push(row(`  ${item.feeLabel ?? "Fee"} ${item.quantity} x ${(item.feeAmount ?? 0).toFixed(2)}`, item.feeTotal.toFixed(2)))
+    }
   }
   lines.push(dashed)
   lines.push(row("TOTAL", isStaffMeal ? "0.00" : order.total.toFixed(2)))

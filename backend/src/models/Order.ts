@@ -13,6 +13,14 @@ export interface IOrderItem {
   portion: "full" | "half";
   quantity: number;
   lineTotal: number;
+  // An add-on sold with this line — hot water for instant noodles, and the
+  // like. Label and rate are snapshotted like every other price here, and the
+  // rate is what was actually charged, which the cashier may have edited down
+  // from the product's default. feeTotal stays out of lineTotal so per-product
+  // revenue and fee income remain separately answerable.
+  feeLabel?: string | null;
+  feeAmount?: number | null;
+  feeTotal?: number;
 }
 
 export interface IOrder {
@@ -42,6 +50,9 @@ const orderItemSchema = new mongoose.Schema<IOrderItem>(
     portion: { type: String, enum: ["full", "half"], default: "full" },
     quantity: { type: Number, required: true, min: 1 },
     lineTotal: { type: Number, required: true, min: 0 },
+    feeLabel: { type: String, default: null },
+    feeAmount: { type: Number, default: null, min: 0 },
+    feeTotal: { type: Number, default: 0, min: 0 },
   },
   { _id: false }
 );

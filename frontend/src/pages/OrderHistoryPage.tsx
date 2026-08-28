@@ -25,6 +25,11 @@ function ItemsList({ items }: { items: import("../types").OrderItem[] }) {
         >
           <span className="font-semibold tabular-nums text-[var(--accent)]">{i.quantity}×</span>
           <span className="text-[var(--text-h)]">{orderItemLabel(i)}</span>
+          {/* Rides on the item's own chip rather than taking one of its own —
+              an add-on is part of that line, not a separate thing sold. */}
+          {!!i.feeTotal && (
+            <span className="text-[var(--accent)]">+ {i.feeLabel ?? "Fee"}</span>
+          )}
         </span>
       ))}
       {rest > 0 && (
@@ -542,14 +547,29 @@ export default function OrderHistoryPage() {
 
             <ul className="flex flex-col gap-2 border-y border-[var(--border)] py-3">
               {viewTarget.items.map((i, idx) => (
-                <li key={idx} className="flex items-baseline gap-3">
-                  <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">{orderItemLabel(i)}</span>
-                  <span className="shrink-0 text-sm tabular-nums text-[var(--text)]">
-                    {i.quantity} × ₱{i.price.toFixed(2)}
-                  </span>
-                  <span className="w-20 shrink-0 text-right tabular-nums text-[var(--text-h)]">
-                    ₱{(i.lineTotal ?? i.price * i.quantity).toFixed(2)}
-                  </span>
+                <li key={idx} className="flex flex-col gap-0.5">
+                  <div className="flex items-baseline gap-3">
+                    <span className="min-w-0 flex-1 truncate text-[var(--text-h)]">{orderItemLabel(i)}</span>
+                    <span className="shrink-0 text-sm tabular-nums text-[var(--text)]">
+                      {i.quantity} × ₱{i.price.toFixed(2)}
+                    </span>
+                    <span className="w-20 shrink-0 text-right tabular-nums text-[var(--text-h)]">
+                      ₱{(i.lineTotal ?? i.price * i.quantity).toFixed(2)}
+                    </span>
+                  </div>
+                  {/* Without this the breakdown doesn't add up to the total —
+                      an item at ₱30 sitting under a ₱35 order. */}
+                  {!!i.feeTotal && (
+                    <div className="flex items-baseline gap-3 pl-3 text-sm text-[var(--accent)]">
+                      <span className="min-w-0 flex-1 truncate">{i.feeLabel ?? "Fee"}</span>
+                      <span className="shrink-0 tabular-nums">
+                        {i.quantity} × ₱{(i.feeAmount ?? 0).toFixed(2)}
+                      </span>
+                      <span className="w-20 shrink-0 text-right tabular-nums">
+                        ₱{i.feeTotal.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

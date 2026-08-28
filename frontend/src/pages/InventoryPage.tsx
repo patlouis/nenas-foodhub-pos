@@ -15,7 +15,7 @@ import { hasStock, hasStockFor, isTracked } from "../stock"
 type SortKey = "name" | "sku" | "category" | "costPrice" | "price" | "stock"
 type SortDir = "asc" | "desc"
 
-const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", costPrice: null, discountQty: null, discountPrice: null, halfPrice: null, halfCostPrice: null }
+const EMPTY: NewProduct = { name: "", sku: "", price: 0, stock: 0, category: "", costPrice: null, discountQty: null, discountPrice: null, halfPrice: null, halfCostPrice: null, feeLabel: null, feeAmount: null }
 
 function StockBadge({ stock }: { stock: number | null }) {
   if (stock === null)
@@ -65,6 +65,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
   const [skuTouched, setSkuTouched] = useState(false)
   const [discountOn, setDiscountOn] = useState(false)
   const [halfOn, setHalfOn] = useState(false)
+  const [feeOn, setFeeOn] = useState(false)
 
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
@@ -180,6 +181,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
     setSkuTouched(false)
     setDiscountOn(false)
     setHalfOn(false)
+    setFeeOn(false)
     setForm({ ...EMPTY, sku: generateSku("") })
     setFormError(null)
     setModalOpen(true)
@@ -190,7 +192,8 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
     setSkuTouched(true)
     setDiscountOn(p.discountQty != null)
     setHalfOn(p.halfPrice != null)
-    setForm({ name: p.name, sku: p.sku ?? "", price: p.price, stock: p.stock, category: p.category ?? "", costPrice: p.costPrice ?? null, discountQty: p.discountQty ?? null, discountPrice: p.discountPrice ?? null, halfPrice: p.halfPrice ?? null, halfCostPrice: p.halfCostPrice ?? null })
+    setFeeOn(p.feeAmount != null)
+    setForm({ name: p.name, sku: p.sku ?? "", price: p.price, stock: p.stock, category: p.category ?? "", costPrice: p.costPrice ?? null, discountQty: p.discountQty ?? null, discountPrice: p.discountPrice ?? null, halfPrice: p.halfPrice ?? null, halfCostPrice: p.halfCostPrice ?? null, feeLabel: p.feeLabel ?? null, feeAmount: p.feeAmount ?? null })
     setFormError(null)
     setModalOpen(true)
   }
@@ -779,6 +782,58 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
                   value={form.halfPrice ?? ""}
                   onChange={(e) => setForm({ ...form, halfPrice: e.target.value !== "" ? Number(e.target.value) : null })}
                   placeholder="0.00"
+                  className={inputCls}
+                />
+              </label>
+            </div>
+          )}
+
+          {/* An optional service sold with the item — hot water for noodles.
+              The amount here is the default the order screen offers; the
+              cashier can re-rate it for a single sale without coming back. */}
+          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
+            <div>
+              <span className="text-sm text-[var(--text-h)]">Add-on fee</span>
+              <p className="text-xs text-[var(--text)]">Offered as an extra on the order screen</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Add-on fee"
+              aria-checked={feeOn}
+              onClick={() => {
+                const next = !feeOn
+                setFeeOn(next)
+                if (!next) setForm((prev) => ({ ...prev, feeLabel: null, feeAmount: null }))
+              }}
+              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${feeOn ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${feeOn ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
+
+          {feeOn && (
+            // The label field needs the room: "Hot water" fits in half a modal
+            // but a longer one doesn't, so the pair stacks on a phone and only
+            // sits side by side once there's width for both.
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_8rem]">
+              <label className={fieldLabelCls}>
+                What it's for
+                <input
+                  type="text" maxLength={30}
+                  value={form.feeLabel ?? ""}
+                  onChange={(e) => setForm({ ...form, feeLabel: e.target.value || null })}
+                  placeholder="Hot water"
+                  className={inputCls}
+                />
+              </label>
+              <label className={fieldLabelCls}>
+                Default fee (₱)
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.feeAmount ?? ""}
+                  onChange={(e) => setForm({ ...form, feeAmount: e.target.value !== "" ? Number(e.target.value) : null })}
+                  placeholder="5.00"
                   className={inputCls}
                 />
               </label>

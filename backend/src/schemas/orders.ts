@@ -11,6 +11,9 @@ export const createOrderSchema = z.object({
           .refine((v) => mongoose.isValidObjectId(v), "Each item needs a valid productId"),
         quantity: z.number().int().min(1, "Each item needs a whole-number quantity of at least 1"),
         portion: z.enum(["full", "half"]).optional().default("full"),
+        // The add-on rate actually charged. Absent means no add-on; the label
+        // is never taken from the client, only the product it belongs to.
+        fee: z.number().min(0, "A fee can't be negative").optional(),
       })
     )
     .min(1, "Order must contain at least one item"),
