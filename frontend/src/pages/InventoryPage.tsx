@@ -731,6 +731,61 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
             )
           })()}
 
+          {/* On = stock null. The switch reads as the plainer statement — this
+              item has no limit — rather than as the bookkeeping behind it. */}
+          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
+            <div>
+              <span className="text-sm text-[var(--text-h)]">Unlimited stock</span>
+              <p className="text-xs text-[var(--text)]">Never runs out — no stock count, alerts or restocking</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Unlimited stock"
+              aria-checked={form.stock === null}
+              onClick={toggleTracking}
+              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${form.stock === null ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${form.stock === null ? "left-[22px]" : "left-0.5"}`}
+              />
+            </button>
+          </div>
+
+          {/* Unlimited needs no stock field. It does need to own up to the count
+              it is about to throw away: the number survives until save, so
+              hiding it here would make it look already gone. */}
+          {form.stock === null ? (
+            savedStock !== null && (
+              <p className="text-xs text-[var(--text)]">
+                Current stock of{" "}
+                <span className="font-medium text-[var(--text-h)]">{savedStock}</span> will be
+                discarded on save
+              </p>
+            )
+          ) : savedStock !== null ? (
+            <div className={fieldLabelCls}>
+              Stock
+              <div className="flex h-10 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums text-[var(--text)]">
+                {savedStock}
+                <span className="ml-1.5 text-xs">remaining — use Restock to adjust</span>
+              </div>
+            </div>
+          ) : (
+            // New product, or tracking switched back on. The latter is a stock
+            // take — selling continued while untracked, so the count is entered
+            // fresh rather than resumed.
+            <label className={fieldLabelCls}>
+              {editTarget ? "Current stock on hand" : "Initial stock"}
+              <input type="number" min="0" value={form.stock || ""} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} placeholder="0" className={inputCls} />
+              {editTarget && (
+                <span className="text-xs font-normal text-[var(--text)]">
+                  Count what's actually on the shelf — tracking resumes from this number.
+                </span>
+              )}
+            </label>
+          )}
+
           {/* Half servings live on the same product so there's one name, one
               category and — the point — one availability switch. */}
           <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
@@ -788,113 +843,6 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
             </div>
           )}
 
-          {/* An optional service sold with the item — hot water for noodles.
-              The amount here is the default the order screen offers; the
-              cashier can re-rate it for a single sale without coming back. */}
-          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
-            <div>
-              <span className="text-sm text-[var(--text-h)]">Add-on fee</span>
-              <p className="text-xs text-[var(--text)]">Offered as an extra on the order screen</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-label="Add-on fee"
-              aria-checked={feeOn}
-              onClick={() => {
-                const next = !feeOn
-                setFeeOn(next)
-                if (!next) setForm((prev) => ({ ...prev, feeLabel: null, feeAmount: null }))
-              }}
-              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${feeOn ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
-            >
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${feeOn ? "left-[22px]" : "left-0.5"}`} />
-            </button>
-          </div>
-
-          {feeOn && (
-            // The label field needs the room: "Hot water" fits in half a modal
-            // but a longer one doesn't, so the pair stacks on a phone and only
-            // sits side by side once there's width for both.
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_8rem]">
-              <label className={fieldLabelCls}>
-                What it's for
-                <input
-                  type="text" maxLength={30}
-                  value={form.feeLabel ?? ""}
-                  onChange={(e) => setForm({ ...form, feeLabel: e.target.value || null })}
-                  placeholder="Hot water"
-                  className={inputCls}
-                />
-              </label>
-              <label className={fieldLabelCls}>
-                Default fee (₱)
-                <input
-                  type="number" min="0" step="0.01"
-                  value={form.feeAmount ?? ""}
-                  onChange={(e) => setForm({ ...form, feeAmount: e.target.value !== "" ? Number(e.target.value) : null })}
-                  placeholder="5.00"
-                  className={inputCls}
-                />
-              </label>
-            </div>
-          )}
-
-          {/* On = stock null. The switch reads as the plainer statement — this
-              item has no limit — rather than as the bookkeeping behind it. */}
-          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
-            <div>
-              <span className="text-sm text-[var(--text-h)]">Unlimited stock</span>
-              <p className="text-xs text-[var(--text)]">Never runs out — no stock count, alerts or restocking</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-label="Unlimited stock"
-              aria-checked={form.stock === null}
-              onClick={toggleTracking}
-              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${form.stock === null ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${form.stock === null ? "left-[22px]" : "left-0.5"}`}
-              />
-            </button>
-          </div>
-
-          {/* Unlimited needs no stock field. It does need to own up to the count
-              it is about to throw away: the number survives until save, so
-              hiding it here would make it look already gone. */}
-          {form.stock === null ? (
-            savedStock !== null && (
-              <p className="text-xs text-[var(--text)]">
-                Current stock of{" "}
-                <span className="font-medium text-[var(--text-h)]">{savedStock}</span> will be
-                discarded on save
-              </p>
-            )
-          ) : savedStock !== null ? (
-            <div className={fieldLabelCls}>
-              Stock
-              <div className="flex h-10 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums text-[var(--text)]">
-                {savedStock}
-                <span className="ml-1.5 text-xs">remaining — use Restock to adjust</span>
-              </div>
-            </div>
-          ) : (
-            // New product, or tracking switched back on. The latter is a stock
-            // take — selling continued while untracked, so the count is entered
-            // fresh rather than resumed.
-            <label className={fieldLabelCls}>
-              {editTarget ? "Current stock on hand" : "Initial stock"}
-              <input type="number" min="0" value={form.stock || ""} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} placeholder="0" className={inputCls} />
-              {editTarget && (
-                <span className="text-xs font-normal text-[var(--text)]">
-                  Count what's actually on the shelf — tracking resumes from this number.
-                </span>
-              )}
-            </label>
-          )}
-
           <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
             <span className="text-sm text-[var(--text-h)]">Quantity discount</span>
             <button
@@ -950,6 +898,58 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
                   </p>
                 ) : null
               })()}
+            </div>
+          )}
+
+          {/* An optional service sold with the item — hot water for noodles.
+              The amount here is the default the order screen offers; the
+              cashier can re-rate it for a single sale without coming back. */}
+          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
+            <div>
+              <span className="text-sm text-[var(--text-h)]">Add-on fee</span>
+              <p className="text-xs text-[var(--text)]">Offered as an extra on the order screen</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Add-on fee"
+              aria-checked={feeOn}
+              onClick={() => {
+                const next = !feeOn
+                setFeeOn(next)
+                if (!next) setForm((prev) => ({ ...prev, feeLabel: null, feeAmount: null }))
+              }}
+              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${feeOn ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${feeOn ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
+
+          {feeOn && (
+            // The label field needs the room: "Hot water" fits in half a modal
+            // but a longer one doesn't, so the pair stacks on a phone and only
+            // sits side by side once there's width for both.
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_8rem]">
+              <label className={fieldLabelCls}>
+                What it's for
+                <input
+                  type="text" maxLength={30}
+                  value={form.feeLabel ?? ""}
+                  onChange={(e) => setForm({ ...form, feeLabel: e.target.value || null })}
+                  placeholder="Hot water"
+                  className={inputCls}
+                />
+              </label>
+              <label className={fieldLabelCls}>
+                Default fee (₱)
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.feeAmount ?? ""}
+                  onChange={(e) => setForm({ ...form, feeAmount: e.target.value !== "" ? Number(e.target.value) : null })}
+                  placeholder="5.00"
+                  className={inputCls}
+                />
+              </label>
             </div>
           )}
 
