@@ -55,9 +55,9 @@ async function openEditDialogFor(p: Product) {
   return user
 }
 
-const trackSwitch = () => screen.getByRole("switch", { name: /track stock/i })
+const unlimitedSwitch = () => screen.getByRole("switch", { name: /unlimited stock/i })
 const confirmDialog = async () =>
-  (await screen.findByText(/Turn off stock tracking\?/)).closest("div[role='dialog']") as HTMLElement
+  (await screen.findByText(/Set to unlimited stock\?/)).closest("div[role='dialog']") as HTMLElement
 
 beforeEach(() => {
   listMock.mockReset()
@@ -65,20 +65,40 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
-describe("turning off stock tracking", () => {
+describe("switching a product to unlimited stock", () => {
   it("flips the switch without confirming — nothing is committed yet", async () => {
     const user = await openEditDialogFor(product({ stock: 12 }))
 
-    await user.click(trackSwitch())
+    await user.click(unlimitedSwitch())
 
-    expect(trackSwitch().getAttribute("aria-checked")).toBe("false")
-    expect(screen.queryByText(/Turn off stock tracking\?/)).toBeNull()
+    expect(unlimitedSwitch().getAttribute("aria-checked")).toBe("true")
+    expect(screen.queryByText(/Set to unlimited stock\?/)).toBeNull()
+  })
+
+  it("says the count is still there and only goes on save", async () => {
+    const user = await openEditDialogFor(product({ stock: 12 }))
+
+    await user.click(unlimitedSwitch())
+
+    // The stock field is gone, so without this the number would look as though
+    // it had already been thrown away. Scoped to the warning itself — a bare
+    // "12" also matches the table row behind the dialog.
+    const warning = screen.getByText(/will be discarded on save/)
+    expect(warning.textContent).toMatch(/12/)
+  })
+
+  it("stays quiet for a product that was already unlimited", async () => {
+    await openEditDialogFor(product({ stock: null }))
+
+    // Nothing is at stake here, so the warning would be pure noise.
+    expect(unlimitedSwitch().getAttribute("aria-checked")).toBe("true")
+    expect(screen.queryByText(/will be discarded on save/)).toBeNull()
   })
 
   it("confirms on save, naming the count about to be discarded", async () => {
     const user = await openEditDialogFor(product({ stock: 12 }))
 
-    await user.click(trackSwitch())
+    await user.click(unlimitedSwitch())
     await user.click(screen.getByRole("button", { name: /^Save$/ }))
 
     const dialog = await confirmDialog()
@@ -90,55 +110,55 @@ describe("turning off stock tracking", () => {
   it("cancelling the confirm saves nothing and keeps the form open", async () => {
     const user = await openEditDialogFor(product({ stock: 12 }))
 
-    await user.click(trackSwitch())
+    await user.click(unlimitedSwitch())
     await user.click(screen.getByRole("button", { name: /^Save$/ }))
     const dialog = await confirmDialog()
     await user.click(within(dialog).getByRole("button", { name: /^Cancel$/ }))
 
-    expect(screen.queryByText(/Turn off stock tracking\?/)).toBeNull()
+    expect(screen.queryByText(/Set to unlimited stock\?/)).toBeNull()
     expect(updateMock).not.toHaveBeenCalled()
-    expect(trackSwitch()).not.toBeNull() // form still open
+    expect(unlimitedSwitch()).not.toBeNull() // form still open
   })
 
-  it("accepting the confirm saves the product as untracked", async () => {
+  it("accepting the confirm saves the product as unlimited", async () => {
     const user = await openEditDialogFor(product({ stock: 12 }))
 
-    await user.click(trackSwitch())
+    await user.click(unlimitedSwitch())
     await user.click(screen.getByRole("button", { name: /^Save$/ }))
     const dialog = await confirmDialog()
-    await user.click(within(dialog).getByRole("button", { name: /Turn off tracking and save/i }))
+    await user.click(within(dialog).getByRole("button", { name: /Set unlimited and save/i }))
 
     expect(updateMock).toHaveBeenCalledTimes(1)
     expect(updateMock.mock.calls[0][1]).toMatchObject({ stock: null })
   })
 
-  it("saves straight through when tracking is left alone", async () => {
+  it("saves straight through when the switch is left alone", async () => {
     const user = await openEditDialogFor(product({ stock: 12 }))
 
     await user.click(screen.getByRole("button", { name: /^Save$/ }))
 
-    expect(screen.queryByText(/Turn off stock tracking\?/)).toBeNull()
+    expect(screen.queryByText(/Set to unlimited stock\?/)).toBeNull()
     expect(updateMock).toHaveBeenCalledTimes(1)
   })
 
-  it("does not confirm for a product that was already untracked", async () => {
+  it("does not confirm for a product that was already unlimited", async () => {
     const user = await openEditDialogFor(product({ stock: null }))
 
     await user.click(screen.getByRole("button", { name: /^Save$/ }))
 
     // Nothing is being turned off, so there is nothing to warn about.
-    expect(screen.queryByText(/Turn off stock tracking\?/)).toBeNull()
+    expect(screen.queryByText(/Set to unlimited stock\?/)).toBeNull()
     expect(updateMock).toHaveBeenCalledTimes(1)
   })
 
-  it("untracks a zero-count product without prompting", async () => {
+  it("sets a zero-count product to unlimited without prompting", async () => {
     const user = await openEditDialogFor(product({ stock: 0 }))
 
-    await user.click(trackSwitch())
+    await user.click(unlimitedSwitch())
     await user.click(screen.getByRole("button", { name: /^Save$/ }))
 
     // There is no count to discard, so the prompt would be pure friction.
-    expect(screen.queryByText(/Turn off stock tracking\?/)).toBeNull()
+    expect(screen.queryByText(/Set to unlimited stock\?/)).toBeNull()
     expect(updateMock).toHaveBeenCalledTimes(1)
     expect(updateMock.mock.calls[0][1]).toMatchObject({ stock: null })
   })

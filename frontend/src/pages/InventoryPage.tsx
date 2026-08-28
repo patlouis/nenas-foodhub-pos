@@ -21,7 +21,7 @@ function StockBadge({ stock }: { stock: number | null }) {
   if (stock === null)
     return (
       <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[var(--social-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--text)]">
-        Not tracked
+        Unlimited
       </span>
     )
   if (stock === 0)
@@ -735,7 +735,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
               <span className="text-sm text-[var(--text-h)]">Sold as half serving</span>
               <p className="text-xs text-[var(--text)]">
                 {tracksStock
-                  ? "Turn off Track stock first — a half can't draw down half a unit"
+                  ? "Turn on Unlimited stock first — a half can't draw down half a unit"
                   : "Adds a Half button on the order screen"}
               </p>
             </div>
@@ -785,30 +785,38 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
             </div>
           )}
 
-          {/* Tracking off = stock null. See src/stock.ts for why. */}
+          {/* On = stock null. The switch reads as the plainer statement — this
+              item has no limit — rather than as the bookkeeping behind it. */}
           <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
             <div>
-              <span className="text-sm text-[var(--text-h)]">Track stock</span>
-              <p className="text-xs text-[var(--text)]">Off for items you don't count, like rice or meals</p>
+              <span className="text-sm text-[var(--text-h)]">Unlimited stock</span>
+              <p className="text-xs text-[var(--text)]">Never runs out — no stock count, alerts or restocking</p>
             </div>
             <button
               type="button"
               role="switch"
-              aria-label="Track stock"
-              aria-checked={form.stock !== null}
+              aria-label="Unlimited stock"
+              aria-checked={form.stock === null}
               onClick={toggleTracking}
-              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${form.stock !== null ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
+              className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition ${form.stock === null ? "bg-[var(--accent)]" : "bg-[var(--social-bg)]"}`}
             >
               <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${form.stock !== null ? "left-[22px]" : "left-0.5"}`}
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${form.stock === null ? "left-[22px]" : "left-0.5"}`}
               />
             </button>
           </div>
 
+          {/* Unlimited needs no stock field. It does need to own up to the count
+              it is about to throw away: the number survives until save, so
+              hiding it here would make it look already gone. */}
           {form.stock === null ? (
-            <p className="text-xs text-[var(--text)]">
-              Always sellable — no stock alerts, Restock or Wastage.
-            </p>
+            savedStock !== null && (
+              <p className="text-xs text-[var(--text)]">
+                Current stock of{" "}
+                <span className="font-medium text-[var(--text-h)]">{savedStock}</span> will be
+                discarded on save
+              </p>
+            )
           ) : savedStock !== null ? (
             <div className={fieldLabelCls}>
               Stock
@@ -905,7 +913,7 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
       <Modal
         open={confirmUntrack}
         onClose={() => setConfirmUntrack(false)}
-        title="Turn off stock tracking?"
+        title="Set to unlimited stock?"
       >
         <p className="text-[var(--text)]">
           <span className="font-medium text-[var(--text-h)]">{editTarget?.name}</span> will stop
@@ -913,15 +921,15 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
           <span className="font-medium text-[var(--text-h)]">{savedStock}</span> will be discarded.
         </p>
         <p className="mt-2 text-sm text-[var(--text)]">
-          Selling carries on while an item is untracked, so switching tracking back on later starts
-          from a fresh count rather than resuming this one.
+          Selling carries on while an item is unlimited, so switching it back off later starts from
+          a fresh count rather than resuming this one.
         </p>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setConfirmUntrack(false)} className={btnOutlineCls}>
             Cancel
           </button>
           <button onClick={() => void saveProduct()} disabled={submitting} className={btnDangerCls}>
-            {submitting ? "Saving…" : "Turn off tracking and save"}
+            {submitting ? "Saving…" : "Set unlimited and save"}
           </button>
         </div>
       </Modal>

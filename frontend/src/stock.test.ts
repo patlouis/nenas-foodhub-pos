@@ -79,8 +79,8 @@ describe("isUnavailable", () => {
 })
 
 describe("stockLabel", () => {
-  it("says the count is absent rather than claiming the item is unlimited", () => {
-    expect(stockLabel(null)).toBe("Not tracked")
+  it("calls an uncounted item unlimited, matching the inventory badge", () => {
+    expect(stockLabel(null)).toBe("Unlimited")
   })
 
   it("reads out of stock at zero and counts otherwise", () => {

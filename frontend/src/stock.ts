@@ -34,7 +34,8 @@ export function isUnavailable(p: { stock: number | null; status?: "active" | "di
 }
 
 export function stockLabel(stock: number | null): string {
-  // Not "Unlimited": rice runs out, we just aren't counting it here.
-  if (!isTracked(stock)) return "Not tracked"
+  // "Unlimited" is how the inventory form and badge put it — the tally is what
+  // has no limit, not the rice, which does run out.
+  if (!isTracked(stock)) return "Unlimited"
   return stock <= 0 ? "Out of stock" : `${stock} in stock`
 }
