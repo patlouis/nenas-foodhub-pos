@@ -133,13 +133,16 @@ function LogoutIcon() {
 }
 
 const NAV_ITEMS: { id: Page; label: string; Icon: () => React.JSX.Element; adminOnly?: boolean }[] = [
-  { id: "dashboard",  label: "Dashboard",     Icon: DashboardIcon, adminOnly: true },
-  { id: "order",      label: "New Order",     Icon: OrderIcon      },
-  { id: "history",    label: "History",       Icon: HistoryIcon    },
-  { id: "categories", label: "Categories",    Icon: CategoriesIcon },
-  { id: "inventory",     label: "Inventory",     Icon: InventoryIcon                   },
-  { id: "expenses",      label: "Expenses",       Icon: ExpensesIcon,     adminOnly: true },
-  { id: "users",         label: "Users",         Icon: UsersIcon,        adminOnly: true },
+  // Ordered by how often they're reached, and so that nothing sits above what
+  // it belongs to: a category describes a product, and Inventory is worked
+  // daily where the category list is set up once.
+  { id: "dashboard",  label: "Dashboard",  Icon: DashboardIcon,  adminOnly: true },
+  { id: "order",      label: "New Order",  Icon: OrderIcon       },
+  { id: "history",    label: "History",    Icon: HistoryIcon     },
+  { id: "inventory",  label: "Inventory",  Icon: InventoryIcon   },
+  { id: "categories", label: "Categories", Icon: CategoriesIcon  },
+  { id: "expenses",   label: "Expenses",   Icon: ExpensesIcon,   adminOnly: true },
+  { id: "users",      label: "Users",      Icon: UsersIcon,      adminOnly: true },
 ]
 
 export default function Sidebar({
