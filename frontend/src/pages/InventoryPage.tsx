@@ -735,17 +735,17 @@ export default function InventoryPage({ onViewLog }: { onViewLog?: () => void })
               category and — the point — one availability switch. */}
           <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
             <div>
-              <span className="text-sm text-[var(--text-h)]">Sold as half serving</span>
+              <span className="text-sm text-[var(--text-h)]">Half serving</span>
               <p className="text-xs text-[var(--text)]">
                 {tracksStock
-                  ? "Turn on Unlimited stock first — a half can't draw down half a unit"
-                  : "Adds a Half button on the order screen"}
+                  ? "Needs Unlimited stock — halves can't be counted"
+                  : "Adds a Half button when ordering"}
               </p>
             </div>
             <button
               type="button"
               role="switch"
-              aria-label="Sold as half serving"
+              aria-label="Half serving"
               aria-checked={halfOn}
               disabled={tracksStock}
               onClick={() => {
